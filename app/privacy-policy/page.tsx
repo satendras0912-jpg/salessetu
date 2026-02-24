@@ -1,33 +1,48 @@
+import LegalLayout from "../components/LegalLayout"
+
 export default function PrivacyPolicy() {
   return (
-    <main className="min-h-screen bg-[#0B0F19] text-white px-6 py-20">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <h1 className="text-4xl font-bold">Privacy Policy</h1>
+    <LegalLayout title="Privacy Policy">
 
-        <p className="text-gray-400">
-          SalesSetu respects your privacy. We collect only the information
-          necessary to provide demo scheduling and lead automation services.
+      <section>
+        <h2 className="text-2xl font-semibold mb-3 text-cyan-400">
+          Information We Collect
+        </h2>
+        <p className="text-gray-300 leading-relaxed">
+          We collect your name, phone number, project details, and location 
+          submitted through demo forms. This data helps us automate lead handling.
         </p>
+      </section>
 
-        <h2 className="text-2xl font-semibold">Information We Collect</h2>
-        <p className="text-gray-400">
-          Name, phone number, project name, and location submitted through our forms.
+      <section>
+        <h2 className="text-2xl font-semibold mb-3 text-cyan-400">
+          How We Use Your Data
+        </h2>
+        <p className="text-gray-300 leading-relaxed">
+          Data is used to schedule demos, automate AI qualification calls, 
+          and improve service performance.
         </p>
+      </section>
 
-        <h2 className="text-2xl font-semibold">How We Use Data</h2>
-        <p className="text-gray-400">
-          To schedule demos, automate lead handling, and improve service quality.
+      <section>
+        <h2 className="text-2xl font-semibold mb-3 text-cyan-400">
+          Data Security
+        </h2>
+        <p className="text-gray-300 leading-relaxed">
+          All information is transmitted via secure encrypted channels. 
+          We do not sell or share user data with third parties.
         </p>
+      </section>
 
-        <h2 className="text-2xl font-semibold">Data Security</h2>
-        <p className="text-gray-400">
-          All data is securely processed via encrypted connections.
+      <section>
+        <h2 className="text-2xl font-semibold mb-3 text-cyan-400">
+          Contact
+        </h2>
+        <p className="text-gray-300">
+          For privacy concerns: support@salessetu.in
         </p>
+      </section>
 
-        <p className="text-gray-500 pt-10">
-          © 2026 SalesSetu – A Product of Digital Avalokan AI
-        </p>
-      </div>
-    </main>
-  );
+    </LegalLayout>
+  )
 }

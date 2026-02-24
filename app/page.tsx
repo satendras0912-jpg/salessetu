@@ -1,5 +1,5 @@
 import DemoForm from "../components/DemoForm";
-
+import Footer from "./components/Footer";
 export default function Home() {
   return (
     <main className="bg-[#0A0A0A] text-white">
@@ -493,26 +493,12 @@ export default function Home() {
     <div className="flex gap-6">
       import Link from "next/link"
 
-export default function Footer() {
+export default function Home() {
   return (
-    <footer className="text-gray-400 py-10">
-      <div className="flex gap-6 justify-center">
+    <main>
+      {/* Your Hero + Sections */}
 
-        <Link href="/privacy-policy" className="hover:text-white">
-          Privacy Policy
-        </Link>
-
-        <Link href="/terms" className="hover:text-white">
-          Terms
-        </Link>
-
-        <Link href="/contact" className="hover:text-white">
-          Contact
-        </Link>
-
-      </div>
-    </footer>
-
+      <Footer />
     </main>
   );
 }
