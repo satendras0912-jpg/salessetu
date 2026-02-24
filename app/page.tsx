@@ -491,15 +491,9 @@ export default function Home() {
     </div>
 
     <div className="flex gap-6">
-      <a href="#" className="hover:text-cyan-400 transition">
-        Privacy Policy
-      </a>
-      <a href="#" className="hover:text-cyan-400 transition">
-        Terms
-      </a>
-      <a href="#" className="hover:text-cyan-400 transition">
-        Contact
-      </a>
+      <a href="/privacy-policy">Privacy Policy</a>
+<a href="/terms">Terms</a>
+<a href="/contact">Contact</a>
     </div>
 
   </div>
