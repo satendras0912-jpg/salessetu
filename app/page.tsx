@@ -1,12 +1,15 @@
 import DemoForm from "../components/DemoForm";
-import Footer from "./components/Footer";
+import Footer from "../components/Footer";
+import Navbar from "../components/Navbar";
 
 export default function Home() {
   return (
+    <>
+    <Navbar />
     <main className="bg-[#0A0A0A] text-white">
 
       {/* HERO SECTION */}
-      <section className="min-h-screen flex items-center px-6 py-24 bg-[#0A0A0A]">
+      <section className="min-h-screen flex items-center pt-32 px-6 bg-[#0A0A0A]">
   <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-16 items-center">
 
     {/* LEFT SIDE */}
