@@ -11,6 +11,29 @@ export const metadata = {
   ],
 };
 
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is real estate sales acceleration?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Real estate sales acceleration improves site visit conversion and reduces response time using AI-powered lead qualification systems."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AI call automation help property developers?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AI call automation instantly contacts and qualifies property leads, allowing sales teams to focus only on serious buyers."
+      }
+    }
+  ]
+};
+
 export default function RealEstateSalesAcceleration() {
   return (
     <main className="bg-[#0A0A0A] text-white px-6 py-24">
@@ -90,6 +113,10 @@ export default function RealEstateSalesAcceleration() {
         </div>
 
       </div>
+      <script
+  type="application/ld+json"
+  dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+/>
     </main>
   );
 }
