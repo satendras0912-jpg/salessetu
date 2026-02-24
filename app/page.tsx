@@ -6,69 +6,92 @@ export default function Home() {
     <main className="bg-[#0A0A0A] text-white">
 
       {/* HERO SECTION */}
-      <section className="min-h-screen flex items-center px-6 py-20">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+      <section className="min-h-screen flex items-center px-6 py-24 bg-[#0A0A0A]">
+  <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-16 items-center">
 
-          <div>
-            <div className="inline-block bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 px-4 py-2 rounded-full text-sm mb-6">
-              AI Powered Real Estate Automation
-            </div>
+    {/* LEFT SIDE */}
+    <div>
 
-            <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-              Convert Real Estate Leads
-              <span className="block text-cyan-400 mt-2">
-                Automatically in 30 Seconds
-              </span>
-            </h1>
+      {/* Badge */}
+      <div className="inline-block mb-6 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-sm">
+        Built for Real Estate Developers & Brokers
+      </div>
 
-            <p className="mt-6 text-lg text-gray-400 max-w-xl">
-              SalesSetu instantly calls, qualifies, and nurtures every property lead.
-              Your sales team only speaks to serious buyers.
-            </p>
+      {/* Heading */}
+      <h1 className="text-4xl md:text-6xl font-bold leading-tight text-white">
+        Convert Property Leads
+        <span className="block text-cyan-400 mt-2">
+          Into Site Visits Automatically
+        </span>
+      </h1>
 
-            <div className="mt-8 flex gap-4 flex-wrap">
-              <a
-  href="#demo"
-  className="bg-cyan-500 px-6 py-3 rounded-xl font-semibold"
->
-  Book Live Demo
-</a>
+      {/* Subheading */}
+      <p className="mt-6 text-lg text-gray-400 max-w-xl">
+        SalesSetu instantly calls, qualifies, and nurtures every incoming property lead.
+        Your sales team only speaks to serious buyers.
+      </p>
 
-              <a
-  href="#how-it-works"
-  className="border border-gray-700 px-6 py-3 rounded-xl"
->
-  See How It Works
-</a>
-            </div>
+      {/* CTA Buttons */}
+      <div className="mt-10 flex gap-4 flex-wrap">
+        <a
+          href="#demo"
+          className="bg-cyan-500 hover:bg-cyan-600 text-black font-semibold px-8 py-4 rounded-lg transition shadow-lg shadow-cyan-500/20"
+        >
+          Book Free Demo
+        </a>
+
+        <a
+          href="#how-it-works"
+          className="border border-gray-700 hover:border-gray-500 text-white px-8 py-4 rounded-lg transition"
+        >
+          See How It Works
+        </a>
+      </div>
+
+      {/* Trust Line */}
+      <p className="mt-8 text-sm text-gray-500">
+        Works with Meta Ads, Google Ads, WhatsApp & Landing Pages.
+      </p>
+    </div>
+
+    {/* RIGHT SIDE – Premium Card */}
+    <div className="relative">
+      <div className="bg-[#111111] border border-gray-800 rounded-2xl p-8 shadow-2xl">
+
+        <h3 className="text-white text-lg font-medium mb-6">
+          AI Qualification Flow
+        </h3>
+
+        <div className="space-y-4 text-sm text-gray-400">
+
+          <div className="flex justify-between">
+            <span>Lead Captured</span>
+            <span className="text-green-400">✓</span>
           </div>
 
-          <div className="bg-[#111111] border border-gray-800 rounded-2xl p-8 shadow-2xl">
-            <p className="text-gray-500 text-sm mb-6">
-              Automated Lead Flow
-            </p>
+          <div className="flex justify-between">
+            <span>Instant AI Call</span>
+            <span className="text-green-400">✓</span>
+          </div>
 
-            <div className="space-y-4 text-sm">
-              <div className="bg-[#1A1A1A] p-4 rounded-lg">
-                📥 Meta / Google Lead Captured
-              </div>
+          <div className="flex justify-between">
+            <span>Budget Verified</span>
+            <span className="text-green-400">✓</span>
+          </div>
 
-              <div className="bg-[#1A1A1A] p-4 rounded-lg">
-                🤖 AI Qualification Call
-              </div>
-
-              <div className="bg-[#1A1A1A] p-4 rounded-lg">
-                💬 WhatsApp Nurturing
-              </div>
-
-              <div className="bg-cyan-500 text-black p-4 rounded-lg font-semibold">
-                🔥 HOT Lead → Assigned to Agent
-              </div>
-            </div>
+          <div className="flex justify-between">
+            <span>Site Visit Interested</span>
+            <span className="text-cyan-400 font-medium">
+              Hot Lead
+            </span>
           </div>
 
         </div>
-      </section>
+      </div>
+    </div>
+
+  </div>
+</section>
 
       {/* PROBLEM SECTION */}
       <section className="py-20 px-6 bg-[#111111]">
