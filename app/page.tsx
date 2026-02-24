@@ -749,7 +749,7 @@ export default function Home() {
 </a>
 
       <a
-  href="https://wa.me/917060213244?text=Hi%20I%20want%20to%20know%20more%20about%20SalesSetu"
+  href="https://wa.me/918191065174?text=Hi%20I%20want%20to%20know%20more%20about%20SalesSetu"
   target="_blank"
   rel="noopener noreferrer"
   className="border px-6 py-3 rounded-xl inline-block"
