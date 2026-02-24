@@ -212,7 +212,7 @@ export default function Home() {
 
     {/* Section Header */}
     <h2 className="text-3xl md:text-4xl font-bold text-white">
-      How SalesSetu Works
+      How Real Estate Lead Automation Works
     </h2>
 
     <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
@@ -280,7 +280,7 @@ export default function Home() {
     {/* Section Heading */}
     <div className="text-center mb-20">
       <h2 className="text-3xl md:text-4xl font-bold text-white">
-        Built for Modern Real Estate Sales Teams
+        AI Lead Qualification for Real Estate Developers & Brokers
       </h2>
 
       <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
@@ -344,7 +344,7 @@ export default function Home() {
 
     {/* Header */}
     <h2 className="text-3xl md:text-4xl font-bold text-white">
-      From Ad Click to Site Visit
+      Real Estate AI Call Bot Workflow - From Ad Click to Site Visit 
     </h2>
 
     <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
@@ -492,6 +492,117 @@ export default function Home() {
           <p className="font-semibold text-white">Rahul Verma</p>
           <p className="text-sm text-gray-500">Property Consultant – Delhi NCR</p>
         </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+<section className="bg-[#0A0A0A] py-28 px-6 border-t border-gray-800">
+  <div className="max-w-4xl mx-auto">
+
+    <h2 className="text-3xl md:text-4xl font-bold text-white mb-8 text-center">
+      Why Real Estate Teams Lose 60% of Property Leads Without Automation
+    </h2>
+
+    <div className="space-y-6 text-gray-400 text-sm leading-relaxed">
+
+      <p>
+        Most real estate developers and brokers struggle with unqualified
+        property leads. Manual follow-ups delay response time, and serious
+        buyers often move to competitors within minutes.
+      </p>
+
+      <p>
+        Real estate lead automation solves this problem by instantly calling,
+        qualifying, and filtering prospects based on budget, timeline, and
+        site visit interest.
+      </p>
+
+      <p>
+        An AI call bot for real estate ensures that every incoming lead
+        from Meta Ads, Google Ads, or landing pages is contacted within
+        seconds — increasing conversion rates and reducing sales team workload.
+      </p>
+
+      <p>
+        SalesSetu acts as a real estate automation platform that connects
+        ads, CRM, WhatsApp, and AI voice qualification into one seamless system.
+      </p>
+
+    </div>
+
+  </div>
+</section>
+
+<section className="bg-[#0F0F0F] py-28 px-6 border-t border-gray-800">
+  <div className="max-w-4xl mx-auto">
+
+    <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-16">
+      Frequently Asked Questions About Real Estate Lead Automation
+    </h2>
+
+    <div className="space-y-8">
+
+      {/* FAQ 1 */}
+      <div className="border border-gray-800 rounded-xl p-6 bg-[#111111]">
+        <h3 className="text-white font-semibold mb-3">
+          What is real estate lead automation?
+        </h3>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          Real estate lead automation is a system that instantly captures,
+          calls, and qualifies property inquiries from Meta Ads, Google Ads,
+          or landing pages. It reduces response time and filters serious buyers automatically.
+        </p>
+      </div>
+
+      {/* FAQ 2 */}
+      <div className="border border-gray-800 rounded-xl p-6 bg-[#111111]">
+        <h3 className="text-white font-semibold mb-3">
+          How does the AI call bot work for property leads?
+        </h3>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          SalesSetu’s AI call bot contacts the lead within seconds,
+          verifies budget, location preference, and site visit interest,
+          and passes only qualified buyers to your sales team.
+        </p>
+      </div>
+
+      {/* FAQ 3 */}
+      <div className="border border-gray-800 rounded-xl p-6 bg-[#111111]">
+        <h3 className="text-white font-semibold mb-3">
+          Does SalesSetu integrate with Meta Ads and Google Ads?
+        </h3>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          Yes. SalesSetu captures leads from Meta Lead Ads,
+          Google Ads landing pages, WhatsApp campaigns,
+          and integrates them into a unified automation flow.
+        </p>
+      </div>
+
+      {/* FAQ 4 */}
+      <div className="border border-gray-800 rounded-xl p-6 bg-[#111111]">
+        <h3 className="text-white font-semibold mb-3">
+          Can it handle multiple real estate projects?
+        </h3>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          Yes. SalesSetu supports multi-project workflows,
+          allowing developers and brokers to manage different inventories
+          while tracking performance separately.
+        </p>
+      </div>
+
+      {/* FAQ 5 */}
+      <div className="border border-gray-800 rounded-xl p-6 bg-[#111111]">
+        <h3 className="text-white font-semibold mb-3">
+          Is this suitable for small brokers or only large developers?
+        </h3>
+        <p className="text-gray-400 text-sm leading-relaxed">
+          SalesSetu is designed for both independent brokers and
+          large-scale developers who want to improve lead quality,
+          reduce manual follow-up, and increase site visit conversions.
+        </p>
       </div>
 
     </div>
