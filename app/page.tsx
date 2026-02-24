@@ -339,6 +339,60 @@ export default function Home() {
   </div>
 </section>
 
+<section className="bg-[#0F0F0F] py-28 px-6 border-t border-gray-800">
+  <div className="max-w-6xl mx-auto text-center">
+
+    {/* Header */}
+    <h2 className="text-3xl md:text-4xl font-bold text-white">
+      From Ad Click to Site Visit
+    </h2>
+
+    <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
+      SalesSetu automates the entire real estate lead journey in seconds.
+    </p>
+
+    {/* Flow Container */}
+    <div className="mt-20 flex flex-col md:flex-row items-center justify-between gap-10 relative">
+
+      {/* Step */}
+      <div className="flow-step">
+        <div className="flow-circle">Ads</div>
+        <p className="flow-label">Meta / Google</p>
+      </div>
+
+      <div className="flow-line hidden md:block" />
+
+      <div className="flow-step">
+        <div className="flow-circle">Lead</div>
+        <p className="flow-label">Captured Instantly</p>
+      </div>
+
+      <div className="flow-line hidden md:block" />
+
+      <div className="flow-step">
+        <div className="flow-circle">AI Call</div>
+        <p className="flow-label">Budget & Intent</p>
+      </div>
+
+      <div className="flow-line hidden md:block" />
+
+      <div className="flow-step">
+        <div className="flow-circle">Hot Lead</div>
+        <p className="flow-label">Verified Buyer</p>
+      </div>
+
+      <div className="flow-line hidden md:block" />
+
+      <div className="flow-step">
+        <div className="flow-circle">Visit</div>
+        <p className="flow-label">Sales Team</p>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
 {/* RESULTS SECTION */}
 <section className="py-20 px-6 bg-[#111111]">
   <div className="max-w-6xl mx-auto text-center">
