@@ -1,28 +1,36 @@
+import LegalLayout from "../components/LegalLayout"
+
 export default function Terms() {
   return (
-    <main className="min-h-screen bg-[#0B0F19] text-white px-6 py-20">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <h1 className="text-4xl font-bold">Terms & Conditions</h1>
+    <LegalLayout title="Terms & Conditions">
 
-        <p className="text-gray-400">
-          By using SalesSetu, you agree to our automation, data handling,
-          and service usage terms.
+      <section>
+        <h2 className="text-2xl font-semibold mb-3 text-cyan-400">
+          Service Overview
+        </h2>
+        <p className="text-gray-300 leading-relaxed">
+          SalesSetu provides AI-powered real estate lead automation solutions.
         </p>
+      </section>
 
-        <h2 className="text-2xl font-semibold">Service Usage</h2>
-        <p className="text-gray-400">
-          SalesSetu provides AI-powered lead automation tools for businesses.
+      <section>
+        <h2 className="text-2xl font-semibold mb-3 text-cyan-400">
+          User Responsibility
+        </h2>
+        <p className="text-gray-300 leading-relaxed">
+          Users are responsible for how leads are handled after assignment.
         </p>
+      </section>
 
-        <h2 className="text-2xl font-semibold">Limitation of Liability</h2>
-        <p className="text-gray-400">
-          We are not responsible for business outcomes resulting from lead usage.
+      <section>
+        <h2 className="text-2xl font-semibold mb-3 text-cyan-400">
+          Limitation of Liability
+        </h2>
+        <p className="text-gray-300 leading-relaxed">
+          SalesSetu is not liable for business results generated from platform usage.
         </p>
+      </section>
 
-        <p className="text-gray-500 pt-10">
-          © 2026 SalesSetu – A Product of Digital Avalokan AI
-        </p>
-      </div>
-    </main>
-  );
+    </LegalLayout>
+  )
 }
