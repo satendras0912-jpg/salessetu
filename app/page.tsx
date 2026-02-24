@@ -274,6 +274,71 @@ export default function Home() {
   </div>
 </section>
 
+<section className="bg-[#0A0A0A] py-28 px-6 border-t border-gray-800">
+  <div className="max-w-6xl mx-auto">
+
+    {/* Section Heading */}
+    <div className="text-center mb-20">
+      <h2 className="text-3xl md:text-4xl font-bold text-white">
+        Built for Modern Real Estate Sales Teams
+      </h2>
+
+      <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
+        Whether you're launching a new project or managing multiple inventories,
+        SalesSetu ensures no serious buyer slips away.
+      </p>
+    </div>
+
+    {/* Grid */}
+    <div className="grid md:grid-cols-3 gap-12">
+
+      {/* Developers */}
+      <div className="bg-[#111111] border border-gray-800 rounded-2xl p-10 hover:border-cyan-500/40 transition">
+        <h3 className="text-white text-xl font-semibold mb-6">
+          For Developers
+        </h3>
+
+        <ul className="space-y-4 text-sm text-gray-400">
+          <li>✔ Automatically qualify project inquiries</li>
+          <li>✔ Reduce unproductive site visits</li>
+          <li>✔ Increase sales team efficiency</li>
+          <li>✔ Track campaign performance instantly</li>
+        </ul>
+      </div>
+
+      {/* Channel Partners */}
+      <div className="bg-[#111111] border border-gray-800 rounded-2xl p-10 hover:border-cyan-500/40 transition">
+        <h3 className="text-white text-xl font-semibold mb-6">
+          For Channel Partners
+        </h3>
+
+        <ul className="space-y-4 text-sm text-gray-400">
+          <li>✔ Filter genuine buyers automatically</li>
+          <li>✔ Follow up 24/7 without manual calling</li>
+          <li>✔ Improve lead-to-visit conversion</li>
+          <li>✔ Close faster with qualified prospects</li>
+        </ul>
+      </div>
+
+      {/* Brokers */}
+      <div className="bg-[#111111] border border-gray-800 rounded-2xl p-10 hover:border-cyan-500/40 transition">
+        <h3 className="text-white text-xl font-semibold mb-6">
+          For Brokers
+        </h3>
+
+        <ul className="space-y-4 text-sm text-gray-400">
+          <li>✔ Save time on non-serious leads</li>
+          <li>✔ Prioritize hot buyers instantly</li>
+          <li>✔ Automate WhatsApp nurturing</li>
+          <li>✔ Focus only on closing deals</li>
+        </ul>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
 {/* RESULTS SECTION */}
 <section className="py-20 px-6 bg-[#111111]">
   <div className="max-w-6xl mx-auto text-center">
