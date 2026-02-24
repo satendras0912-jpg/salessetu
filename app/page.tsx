@@ -491,13 +491,27 @@ export default function Home() {
     </div>
 
     <div className="flex gap-6">
-      <a href="/privacy-policy">Privacy Policy</a>
-<a href="/terms">Terms</a>
-<a href="/contact">Contact</a>
-    </div>
+      import Link from "next/link"
 
-  </div>
-</footer>
+export default function Footer() {
+  return (
+    <footer className="text-gray-400 py-10">
+      <div className="flex gap-6 justify-center">
+
+        <Link href="/privacy-policy" className="hover:text-white">
+          Privacy Policy
+        </Link>
+
+        <Link href="/terms" className="hover:text-white">
+          Terms
+        </Link>
+
+        <Link href="/contact" className="hover:text-white">
+          Contact
+        </Link>
+
+      </div>
+    </footer>
 
     </main>
   );
