@@ -204,45 +204,70 @@ export default function Home() {
 </section>
 
 {/* HOW IT WORKS */}
-<section id="how-it-works" className="py-20 px-6 bg-black">
+<section id="how-it-works" className="bg-[#0F0F0F] py-24 px-6">
   <div className="max-w-6xl mx-auto text-center">
 
-    <h2 className="text-4xl font-bold mb-12">
+    {/* Section Header */}
+    <h2 className="text-3xl md:text-4xl font-bold text-white">
       How SalesSetu Works
     </h2>
 
-    <div className="grid md:grid-cols-4 gap-8 text-left">
+    <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
+      From ad click to site visit — fully automated in seconds.
+    </p>
 
-      <div className="bg-[#111111] p-6 rounded-xl border border-gray-800">
-        <h3 className="font-semibold mb-2 text-cyan-400">1. Lead Captured</h3>
-        <p className="text-gray-400 text-sm">
-          Meta Ads, Google Ads or Website forms send lead instantly.
+    {/* Steps */}
+    <div className="mt-16 grid md:grid-cols-3 gap-10 text-left">
+
+      {/* Step 1 */}
+      <div className="bg-[#151515] border border-gray-800 p-8 rounded-xl hover:border-cyan-500/40 transition">
+        <div className="text-cyan-400 text-sm font-medium mb-3">
+          Step 01
+        </div>
+
+        <h3 className="text-white text-xl font-semibold mb-4">
+          Capture Every Lead
+        </h3>
+
+        <p className="text-gray-400 text-sm leading-relaxed">
+          Leads from Meta Ads, Google Ads, WhatsApp, or landing pages
+          are automatically stored and processed instantly.
         </p>
       </div>
 
-      <div className="bg-[#111111] p-6 rounded-xl border border-gray-800">
-        <h3 className="font-semibold mb-2 text-cyan-400">2. AI Qualification Call</h3>
-        <p className="text-gray-400 text-sm">
-          AI calls within 30 seconds and checks budget & intent.
+      {/* Step 2 */}
+      <div className="bg-[#151515] border border-gray-800 p-8 rounded-xl hover:border-cyan-500/40 transition">
+        <div className="text-cyan-400 text-sm font-medium mb-3">
+          Step 02
+        </div>
+
+        <h3 className="text-white text-xl font-semibold mb-4">
+          AI Qualification Call
+        </h3>
+
+        <p className="text-gray-400 text-sm leading-relaxed">
+          Our AI instantly calls the lead, verifies budget,
+          timeline, location preference, and site visit interest.
         </p>
       </div>
 
-      <div className="bg-[#111111] p-6 rounded-xl border border-gray-800">
-        <h3 className="font-semibold mb-2 text-cyan-400">3. WhatsApp Nurturing</h3>
-        <p className="text-gray-400 text-sm">
-          Automated follow-ups build trust and filter serious buyers.
-        </p>
-      </div>
+      {/* Step 3 */}
+      <div className="bg-[#151515] border border-gray-800 p-8 rounded-xl hover:border-cyan-500/40 transition">
+        <div className="text-cyan-400 text-sm font-medium mb-3">
+          Step 03
+        </div>
 
-      <div className="bg-[#111111] p-6 rounded-xl border border-gray-800">
-        <h3 className="font-semibold mb-2 text-cyan-400">4. HOT Lead to Agent</h3>
-        <p className="text-gray-400 text-sm">
-          Only qualified leads are assigned to your sales team.
+        <h3 className="text-white text-xl font-semibold mb-4">
+          Only Hot Leads to Sales Team
+        </h3>
+
+        <p className="text-gray-400 text-sm leading-relaxed">
+          Your sales team receives only serious buyers,
+          saving time and increasing conversion rates.
         </p>
       </div>
 
     </div>
-
   </div>
 </section>
 
