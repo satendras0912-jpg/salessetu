@@ -475,27 +475,8 @@ export default function Home() {
   </div>
 </section>
 
-{/* FOOTER */}
-<footer className="py-12 px-6 bg-[#0A0A0A] border-t border-gray-800 text-gray-500 text-sm">
-  <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+<Footer />
 
-    <div className="text-center md:text-left">
-      <p>
-        © {new Date().getFullYear()} SalesSetu.
-      </p>
-      <p className="mt-1">
-        A Product of 
-        <span className="text-cyan-400 font-medium ml-1">
-          Digital Avalokan AI
-        </span>
-      </p>
-    </div>
-
-    <div className="flex gap-6">
-
-   <Footer />
-
-   </main>
-   
-  );
-}
+  </main>
+);
+}           
