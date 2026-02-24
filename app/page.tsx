@@ -30,7 +30,7 @@ export default function Home() {
 
       {/* Subheading */}
       <p className="mt-6 text-lg text-gray-400 max-w-xl">
-        SalesSetu instantly calls, qualifies, and nurtures every incoming property lead and reduce unqualified property leads by 60%
+        SalesSetu instantly calls, qualifies, and nurtures every incoming property lead and reduce unqualified property leads by 60%.   
         Your sales team only speaks to serious buyers.
       </p>
 
