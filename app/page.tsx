@@ -22,9 +22,9 @@ export default function Home() {
 
       {/* Heading */}
       <h1 className="text-4xl md:text-6xl font-bold leading-tight text-white">
-        Convert Property Leads
+        Accelerate Real Estate Sales 
         <span className="block text-cyan-400 mt-2">
-          Into Site Visits Automatically
+          With AI-Driven Lead Qualification 
         </span>
       </h1>
 
@@ -402,7 +402,7 @@ export default function Home() {
     </h2>
 
     <p className="text-gray-400 max-w-2xl mx-auto mb-16">
-      SalesSetu is built to increase response speed, improve qualification,
+      SalesSetu is built to increase response time, lower cost per qualified lead, higher site visit rate, shorter closing cycle 
       and maximize return on ad spend for real estate businesses.
     </p>
 
@@ -437,6 +437,29 @@ export default function Home() {
       </div>
 
     </div>
+  </div>
+</section>
+
+<section className="bg-[#0A0A0A] py-28 px-6 border-t border-gray-800">
+  <div className="max-w-4xl mx-auto text-center">
+
+    <h2 className="text-3xl md:text-4xl font-bold text-white mb-8">
+      Real Estate Sales Acceleration, Not Just Lead Generation
+    </h2>
+
+    <p className="text-gray-400 leading-relaxed text-sm space-y-6">
+      Most real estate businesses focus only on generating more leads.
+      But the real problem is speed, qualification, and follow-up consistency.
+      SalesSetu accelerates the entire sales cycle by instantly engaging,
+      verifying, and prioritizing serious buyers.
+    </p>
+
+    <p className="text-gray-400 leading-relaxed text-sm mt-6">
+      Instead of increasing ad spend, developers and brokers can improve
+      site visit conversion, reduce wasted sales time, and shorten deal
+      cycles through intelligent automation.
+    </p>
+
   </div>
 </section>
 
