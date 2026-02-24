@@ -1,5 +1,6 @@
 import DemoForm from "../components/DemoForm";
 import Footer from "./components/Footer";
+
 export default function Home() {
   return (
     <main className="bg-[#0A0A0A] text-white">
@@ -491,14 +492,10 @@ export default function Home() {
     </div>
 
     <div className="flex gap-6">
-      import Link from "next/link"
 
-export default function Home() {
-  return (
-    <main>
-      {/* Your Hero + Sections */}
+   <Footer />
 
-      <Footer />
-    </main>
+   </main>
+   
   );
 }
