@@ -32,3 +32,11 @@ export default function RootLayout({
     </html>
   );
 }
+
+export const metadata = {
+  title: "SalesSetu",
+  description: "AI Powered Real Estate Automation",
+  icons: {
+    icon: "/favicon.ico",
+  },
+};
