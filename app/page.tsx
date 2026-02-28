@@ -30,9 +30,15 @@ export default function Home() {
 
       {/* Subheading */}
       <p className="mt-6 text-lg text-gray-400 max-w-xl">
-        SalesSetu instantly calls, qualifies, and nurtures every incoming property lead and reduce unqualified property leads by 60%.   
-        Your sales team only speaks to serious buyers.
-      </p>
+  SalesSetu is a{" "}
+  <a
+    href="/real-estate-sales-acceleration"
+    className="text-cyan-400 underline hover:text-cyan-300"
+  >
+    real estate sales acceleration SaaS
+  </a>{" "}
+  that instantly qualifies property leads and increases site visit conversions.
+</p>
 
       {/* CTA Buttons */}
       <div className="mt-10 flex gap-4 flex-wrap">

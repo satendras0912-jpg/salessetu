@@ -49,6 +49,13 @@ export default function RealEstateSalesAcceleration() {
           using automation and AI-driven lead qualification.
         </p>
 
+        <p className="text-gray-400 leading-relaxed">
+  Learn more about the full platform on the{" "}
+  <a href="/" className="text-cyan-400 underline hover:text-cyan-300">
+    SalesSetu homepage
+  </a>.
+</p>
+
         <h2 className="text-2xl font-semibold mt-10">
           Why Traditional Real Estate Lead Management Fails
         </h2>
