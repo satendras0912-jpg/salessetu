@@ -1,4 +1,5 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Real Estate Lead Automation Software | AI for Property Developers",
@@ -177,12 +178,12 @@ export default function RealEstateLeadAutomationPage() {
         {/* CTA */}
 
         <div className="text-center mt-14">
-          <a
+          <Link 
             href="/#demo"
             className="bg-cyan-500 hover:bg-cyan-600 text-black font-medium px-8 py-4 rounded-lg transition"
           >
             Book a Free Real Estate Automation Demo
-          </a>
+          </Link>
         </div>
 
         {/* FAQ */}

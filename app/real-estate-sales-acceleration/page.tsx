@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export const metadata = {
   title: "Real Estate Sales Acceleration SaaS | SalesSetu",
   description:
@@ -51,9 +53,13 @@ export default function RealEstateSalesAcceleration() {
 
         <p className="text-gray-400 leading-relaxed">
   Learn more about the full platform on the{" "}
-  <a href="/" className="text-cyan-400 underline hover:text-cyan-300">
+  <Link
+    href="/"
+    className="text-cyan-400 underline hover:text-cyan-300"
+  >
     SalesSetu homepage
-  </a>.
+  </Link>
+  .
 </p>
 
         <h2 className="text-2xl font-semibold mt-10">
@@ -111,12 +117,12 @@ export default function RealEstateSalesAcceleration() {
         </ul>
 
         <div className="mt-16 text-center">
-          <a
+          <Link
             href="/#demo"
             className="bg-cyan-500 hover:bg-cyan-600 text-black font-medium px-8 py-4 rounded-lg transition"
           >
             Book a Free Demo
-          </a>
+          </Link>
         </div>
 
       </div>
