@@ -12,7 +12,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "SalesSetu – Real Estate Lead Automation & AI Call Bot",
   description:
     "SalesSetu is an AI-powered real estate lead automation platform that instantly calls, qualifies, and filters property leads from Meta Ads and Google Ads.",

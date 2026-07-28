@@ -290,7 +290,7 @@ export default function Home() {
       </h2>
 
       <p className="mt-4 text-gray-400 max-w-2xl mx-auto">
-        Whether you're launching a new project or managing multiple inventories,
+        Whether you&apos;re launching a new project or managing multiple inventories,
         SalesSetu ensures no serious buyer slips away.
       </p>
     </div>

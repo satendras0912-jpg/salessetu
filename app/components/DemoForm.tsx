@@ -1,6 +1,7 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
+import type { FormEventHandler } from "react";
 
 export default function DemoForm() {
   const [loading, setLoading] = useState(false);
@@ -23,13 +24,16 @@ export default function DemoForm() {
     });
   }, []);
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
+  const handleSubmit: FormEventHandler<HTMLFormElement> = async (e) => {
+  e.preventDefault();
+
+  const formElement = e.currentTarget;
+  const formData = new FormData(formElement);
     setLoading(true);
     setError("");
     setSuccess(false);
 
-    const formData = new FormData(e.target);
+    const form = e.currentTarget;
 
     try {
       const response = await fetch(
@@ -56,7 +60,7 @@ export default function DemoForm() {
       }
 
       setSuccess(true);
-      e.target.reset();
+      form.reset();
     } catch (err) {
       console.error("Error:", err);
       setError("Something went wrong. Please try again.");
