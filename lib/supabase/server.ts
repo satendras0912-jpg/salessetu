@@ -9,12 +9,12 @@ function getSupabaseConfig() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL is not configured.");
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL is missing.");
   }
 
   if (!key) {
     throw new Error(
-      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is not configured.",
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.",
     );
   }
 
@@ -37,8 +37,10 @@ export async function createClient() {
             cookieStore.set(name, value, options);
           });
         } catch {
-          // Server Components cannot always write cookies.
-          // The root proxy handles session-cookie refresh.
+          /*
+           * Server Components cookies write नहीं कर सकते।
+           * Proxy token refresh और cookie update संभालेगा।
+           */
         }
       },
     },

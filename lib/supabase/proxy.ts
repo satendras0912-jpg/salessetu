@@ -9,12 +9,12 @@ function getSupabaseConfig() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL is not configured.");
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL is missing.");
   }
 
   if (!key) {
     throw new Error(
-      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is not configured.",
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is missing.",
     );
   }
 
@@ -24,7 +24,7 @@ function getSupabaseConfig() {
 export async function updateSession(request: NextRequest) {
   const { url, key } = getSupabaseConfig();
 
-  let response = NextResponse.next({
+  let supabaseResponse = NextResponse.next({
     request,
   });
 
@@ -35,23 +35,32 @@ export async function updateSession(request: NextRequest) {
       },
 
       setAll(cookiesToSet) {
+        /*
+         * Refreshed cookies Server Components को उपलब्ध कराएँ।
+         */
         cookiesToSet.forEach(({ name, value }) => {
           request.cookies.set(name, value);
         });
 
-        response = NextResponse.next({
+        supabaseResponse = NextResponse.next({
           request,
         });
 
+        /*
+         * वही refreshed cookies browser में भी भेजें।
+         */
         cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
+          supabaseResponse.cookies.set(name, value, options);
         });
       },
     },
   });
 
-  // Validates or refreshes the current authentication session.
+  /*
+   * Token को validate/refresh करता है।
+   * इसके और createServerClient के बीच अन्य logic न रखें।
+   */
   await supabase.auth.getClaims();
 
-  return response;
+  return supabaseResponse;
 }
