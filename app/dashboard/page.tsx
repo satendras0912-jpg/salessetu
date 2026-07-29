@@ -1,195 +1,302 @@
 import Link from "next/link";
 
-import { requireDashboardAccess } from "@/lib/auth/access-control";
+import DashboardModules from "@/components/dashboard/DashboardModules";
+import { requirePermissionAccess } from "@/lib/auth/access-control";
+
+function extractCodesFromCollection(
+  collection: unknown,
+): string[] {
+  const items =
+    collection instanceof Set
+      ? Array.from(collection)
+      : Array.isArray(collection)
+        ? collection
+        : [];
+
+  return items.flatMap((item) => {
+    if (typeof item === "string") {
+      return [item];
+    }
+
+    if (
+      item !== null &&
+      typeof item === "object" &&
+      "code" in item
+    ) {
+      const code = (
+        item as {
+          code?: unknown;
+        }
+      ).code;
+
+      return typeof code === "string" ? [code] : [];
+    }
+
+    return [];
+  });
+}
+
+function extractPermissionCodes(
+  permissionContext: unknown,
+): string[] {
+  const directCodes =
+    extractCodesFromCollection(permissionContext);
+
+  if (directCodes.length > 0) {
+    return Array.from(new Set(directCodes));
+  }
+
+  if (
+    permissionContext === null ||
+    typeof permissionContext !== "object"
+  ) {
+    return [];
+  }
+
+  const context = permissionContext as Record<
+    string,
+    unknown
+  >;
+
+  const possibleCollections: unknown[] = [
+    context.codes,
+    context.permissionCodes,
+    context.permissions,
+    context.effectivePermissions,
+    context.items,
+  ];
+
+  for (const collection of possibleCollections) {
+    const codes = extractCodesFromCollection(collection);
+
+    if (codes.length > 0) {
+      return Array.from(new Set(codes));
+    }
+  }
+
+  return [];
+}
 
 export default async function DashboardPage() {
-  const context = await requireDashboardAccess();
+  const { context, permissions } =
+    await requirePermissionAccess({
+      allOf: ["dashboard.view"],
+      loginRedirectTo: "/login?next=/dashboard",
+      unauthorizedRedirectTo: "/unauthorized",
+    });
+
+  const permissionCodes =
+    extractPermissionCodes(permissions);
 
   const organization = context.organization;
   const membership = context.membership;
+  const roles = context.roles ?? [];
+
+  const organizationName =
+    organization?.name ?? "SalesSetu Workspace";
+
+  const organizationSlug =
+    organization?.slug ?? "workspace";
+
+  const organizationStatus =
+    organization?.status ?? "active";
+
+  const userEmail =
+    context.user.email ?? "Unknown user";
+
+  const isOwner = Boolean(membership?.isOwner);
+
+  const primaryRole =
+    roles[0]?.name ??
+    roles[0]?.code ??
+    "Workspace Member";
 
   return (
-    <div className="space-y-8">
-      <section>
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-400">
-          SalesSetu Enterprise
-        </p>
+    <div className="space-y-9">
+      {/* Page heading */}
+      <header className="flex flex-col justify-between gap-6 xl:flex-row xl:items-end">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-400">
+            SalesSetu Enterprise
+          </p>
 
-        <h1 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
-          Platform Dashboard
-        </h1>
+          <h1 className="mt-3 text-4xl font-bold tracking-tight text-white sm:text-5xl">
+            Platform Dashboard
+          </h1>
 
-        <p className="mt-3 max-w-3xl leading-7 text-slate-400">
-          Your authenticated SalesSetu organization workspace is active and
-          protected through server-side membership and role validation.
-        </p>
-      </section>
+          <p className="mt-4 max-w-3xl text-base leading-7 text-slate-400">
+            Your authenticated SalesSetu organization
+            workspace is active and protected through
+            server-side membership, role and permission
+            validation.
+          </p>
+        </div>
 
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <DashboardMetric
-          label="Authentication"
-          value="Active"
-          description="Server session verified"
-          valueClassName="text-emerald-400"
-        />
+        <Link
+          href="/dashboard/context"
+          className="inline-flex w-fit items-center justify-center rounded-xl bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+        >
+          View organization context
+        </Link>
+      </header>
 
-        <DashboardMetric
-          label="Organization"
-          value={organization?.name ?? "Unavailable"}
-          description={organization?.slug ?? "No workspace slug"}
-        />
+      {/* Workspace summary */}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+          <p className="text-sm text-slate-500">
+            Authentication
+          </p>
 
-        <DashboardMetric
-          label="Membership"
-          value={membership?.membershipStatus ?? "Unknown"}
-          description={
-            membership?.isOwner
+          <p className="mt-3 text-2xl font-bold text-emerald-300">
+            Active
+          </p>
+
+          <p className="mt-2 text-sm text-slate-500">
+            Server session verified
+          </p>
+        </article>
+
+        <article className="min-w-0 rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+          <p className="text-sm text-slate-500">
+            Organization
+          </p>
+
+          <p className="mt-3 truncate text-2xl font-bold text-white">
+            {organizationName}
+          </p>
+
+          <p className="mt-2 truncate text-sm text-slate-500">
+            {organizationSlug}
+          </p>
+        </article>
+
+        <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+          <p className="text-sm text-slate-500">
+            Membership
+          </p>
+
+          <p className="mt-3 text-2xl font-bold text-cyan-300">
+            Active
+          </p>
+
+          <p className="mt-2 text-sm text-slate-500">
+            {isOwner
               ? "Workspace owner"
-              : "Organization member"
-          }
-          valueClassName="capitalize text-cyan-300"
-        />
+              : "Organization member"}
+          </p>
+        </article>
 
-        <DashboardMetric
-          label="Assigned roles"
-          value={String(context.roles.length)}
-          description={
-            context.roles[0]?.name ??
-            (membership?.isOwner ? "Owner access active" : "No explicit role")
-          }
-        />
+        <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
+          <p className="text-sm text-slate-500">
+            Assigned roles
+          </p>
+
+          <p className="mt-3 text-2xl font-bold text-white">
+            {roles.length}
+          </p>
+
+          <p className="mt-2 truncate text-sm text-slate-500">
+            {primaryRole}
+          </p>
+        </article>
       </section>
 
-      <section className="rounded-3xl border border-slate-800 bg-slate-900 p-6 md:p-8">
-        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
+      {/* Enterprise foundation */}
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 sm:p-8">
+        <div className="flex flex-col justify-between gap-5 xl:flex-row xl:items-center">
           <div>
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-2xl font-bold text-white">
               Enterprise foundation status
             </h2>
 
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-              Authentication, organization membership, role resolution and
+              Authentication, organization membership,
+              role resolution, permission evaluation and
               protected dashboard routing are operational.
             </p>
           </div>
 
-          <Link
-            href="/dashboard/context"
-            className="inline-flex items-center justify-center rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
-          >
-            View organization context
-          </Link>
+          <span className="w-fit rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium capitalize text-emerald-300">
+            {organizationStatus}
+          </span>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <StatusItem label="Supabase SSR" status="Operational" />
-          <StatusItem label="Authentication guard" status="Operational" />
-          <StatusItem label="Organization context" status="Operational" />
-          <StatusItem label="RBAC foundation" status="Operational" />
+        <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            "Supabase SSR",
+            "Authentication guard",
+            "Organization context",
+            "RBAC foundation",
+          ].map((item) => (
+            <article
+              key={item}
+              className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5"
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className="h-2.5 w-2.5 rounded-full bg-emerald-400"
+                />
+
+                <p className="font-medium text-slate-200">
+                  {item}
+                </p>
+              </div>
+
+              <p className="mt-3 text-sm text-emerald-400">
+                Operational
+              </p>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-800 bg-slate-900 p-6 md:p-8">
-        <h2 className="text-xl font-semibold">Next platform modules</h2>
+      {/* Permission-aware platform modules */}
+      <DashboardModules
+        permissionCodes={permissionCodes}
+        isOwner={isOwner}
+      />
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <ModulePlaceholder
-            title="Lead Operations"
-            description="Lead capture, validation, qualification and assignment."
-          />
+      {/* Current session */}
+      <section className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 sm:p-8">
+        <h2 className="text-xl font-bold text-white">
+          Current session
+        </h2>
 
-          <ModulePlaceholder
-            title="AI Calling"
-            description="Call jobs, campaigns, outcomes and qualification results."
-          />
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Signed-in user
+            </p>
 
-          <ModulePlaceholder
-            title="Sales Pipeline"
-            description="Follow-ups, site visits, bookings and deal progression."
-          />
+            <p className="mt-2 break-all text-sm font-medium text-slate-200">
+              {userEmail}
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Primary role
+            </p>
+
+            <p className="mt-2 text-sm font-medium text-slate-200">
+              {primaryRole}
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Effective permissions
+            </p>
+
+            <p className="mt-2 text-sm font-medium text-cyan-300">
+              {permissionCodes.length.toLocaleString(
+                "en-IN",
+              )}
+            </p>
+          </article>
         </div>
       </section>
     </div>
-  );
-}
-
-type DashboardMetricProps = {
-  label: string;
-  value: string;
-  description: string;
-  valueClassName?: string;
-};
-
-function DashboardMetric({
-  label,
-  value,
-  description,
-  valueClassName = "text-white",
-}: DashboardMetricProps) {
-  return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-      <p className="text-sm text-slate-500">{label}</p>
-
-      <p
-        className={[
-          "mt-3 truncate text-xl font-semibold",
-          valueClassName,
-        ].join(" ")}
-      >
-        {value}
-      </p>
-
-      <p className="mt-2 truncate text-xs text-slate-500">
-        {description}
-      </p>
-    </article>
-  );
-}
-
-type StatusItemProps = {
-  label: string;
-  status: string;
-};
-
-function StatusItem({ label, status }: StatusItemProps) {
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-      <div className="flex items-center gap-2">
-        <span
-          aria-hidden="true"
-          className="h-2 w-2 rounded-full bg-emerald-400"
-        />
-
-        <span className="text-sm font-medium text-slate-200">
-          {label}
-        </span>
-      </div>
-
-      <p className="mt-2 text-xs text-emerald-400">{status}</p>
-    </div>
-  );
-}
-
-type ModulePlaceholderProps = {
-  title: string;
-  description: string;
-};
-
-function ModulePlaceholder({
-  title,
-  description,
-}: ModulePlaceholderProps) {
-  return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-950 p-5">
-      <p className="font-semibold text-slate-100">{title}</p>
-
-      <p className="mt-2 text-sm leading-6 text-slate-500">
-        {description}
-      </p>
-
-      <span className="mt-4 inline-flex rounded-full border border-slate-800 px-3 py-1 text-xs text-slate-500">
-        Upcoming
-      </span>
-    </article>
   );
 }

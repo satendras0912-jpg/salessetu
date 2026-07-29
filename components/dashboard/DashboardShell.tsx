@@ -22,9 +22,6 @@ export default function DashboardShell({
   isOwner,
   permissionCodes,
 }: DashboardShellProps) {
-  const isActive =
-    organizationStatus.trim().toLowerCase() === "active";
-
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       <DashboardSidebar
@@ -46,11 +43,7 @@ export default function DashboardShell({
               <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                 <span
                   aria-hidden="true"
-                  className={`h-2 w-2 rounded-full ${
-                    isActive
-                      ? "bg-emerald-400"
-                      : "bg-amber-400"
-                  }`}
+                  className="h-2 w-2 rounded-full bg-emerald-400"
                 />
 
                 <span className="capitalize">
@@ -69,7 +62,7 @@ export default function DashboardShell({
           </div>
         </header>
 
-        <main className="px-6 py-8">
+        <main className="px-4 py-7 sm:px-6 sm:py-8">
           <div className="mx-auto max-w-7xl">
             {children}
           </div>
