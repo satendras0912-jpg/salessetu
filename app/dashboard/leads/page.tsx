@@ -3,12 +3,21 @@ import { redirect } from "next/navigation";
 
 import LeadFilters from "@/components/leads/LeadFilters";
 import LeadTable from "@/components/leads/LeadTable";
+
 import { requirePermissionAccess } from "@/lib/auth/access-control";
+
+import {
+  LEAD_FORM_PERMISSIONS,
+} from "@/lib/leads/lead-form-contract";
+
 import {
   getLeadList,
   getLeadSources,
 } from "@/lib/leads/lead-service";
+
 import type { LeadListFilters } from "@/types/leads";
+
+export const dynamic = "force-dynamic";
 
 type RawSearchParams = Record<
   string,
@@ -40,6 +49,20 @@ function parsePositiveInteger(
   }
 
   return parsed;
+}
+
+function hasPermission(
+  permissionCodes: readonly string[],
+  requiredPermission: string,
+): boolean {
+  const normalizedRequiredPermission =
+    requiredPermission.trim().toLowerCase();
+
+  return permissionCodes.some(
+    (permissionCode) =>
+      permissionCode.trim().toLowerCase() ===
+      normalizedRequiredPermission,
+  );
 }
 
 function createPageHref(
@@ -75,7 +98,10 @@ function createPageHref(
   }
 
   params.set("page", String(page));
-  params.set("pageSize", String(filters.pageSize ?? 25));
+  params.set(
+    "pageSize",
+    String(filters.pageSize ?? 25),
+  );
 
   return `/dashboard/leads?${params.toString()}`;
 }
@@ -83,13 +109,19 @@ function createPageHref(
 export default async function LeadOperationsPage({
   searchParams,
 }: LeadOperationsPageProps) {
-  const { context } = await requirePermissionAccess({
-    allOf: ["leads.view"],
-    loginRedirectTo: "/login?next=/dashboard/leads",
-    unauthorizedRedirectTo: "/unauthorized",
-  });
+  const { context, permissions } =
+    await requirePermissionAccess({
+      allOf: [LEAD_FORM_PERMISSIONS.view],
 
-  const organizationId = context.organization?.id;
+      loginRedirectTo:
+        "/login?next=/dashboard/leads",
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id;
 
   if (!organizationId) {
     redirect(
@@ -97,14 +129,27 @@ export default async function LeadOperationsPage({
     );
   }
 
+  const isOwner = Boolean(
+    context.membership?.isOwner,
+  );
+
+  const canCreateLead =
+    isOwner ||
+    hasPermission(
+      permissions.codes,
+      LEAD_FORM_PERMISSIONS.create,
+    );
+
   const rawParams = await searchParams;
 
   const filters: LeadListFilters = {
     search:
-      getSingleValue(rawParams.search).trim() || undefined,
+      getSingleValue(rawParams.search).trim() ||
+      undefined,
 
     status:
-      getSingleValue(rawParams.status).trim() || undefined,
+      getSingleValue(rawParams.status).trim() ||
+      undefined,
 
     assignmentStatus:
       getSingleValue(
@@ -138,21 +183,28 @@ export default async function LeadOperationsPage({
 
   const currentPageCount = result.items.length;
 
-  const manualReviewCount = result.items.filter(
-    (lead) =>
-      lead.validation?.decision === "manual_review",
-  ).length;
-
-  const unassignedCount = result.items.filter(
-    (lead) =>
-      !lead.assignment ||
-      lead.assignment.status === "unassigned" ||
-      lead.assignmentStatus === "unassigned",
-  ).length;
-
   const approvedCount = result.items.filter(
     (lead) =>
       lead.validation?.decision === "approved",
+  ).length;
+
+  const manualReviewCount = result.items.filter(
+    (lead) =>
+      lead.validation?.decision ===
+      "manual_review",
+  ).length;
+
+  const unassignedCount = result.items.filter(
+    (lead) => {
+      const assignmentStatus =
+        lead.assignment?.status ??
+        lead.assignmentStatus;
+
+      return (
+        !lead.assignment ||
+        assignmentStatus === "unassigned"
+      );
+    },
   ).length;
 
   const firstVisibleLead =
@@ -167,7 +219,8 @@ export default async function LeadOperationsPage({
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
+      {/* Page heading */}
+      <header className="flex flex-col justify-between gap-6 xl:flex-row xl:items-end">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-400">
             SalesSetu Enterprise
@@ -179,23 +232,35 @@ export default async function LeadOperationsPage({
 
           <p className="mt-3 max-w-3xl text-base leading-7 text-slate-400">
             Captured leads, validation status, source,
-            qualification और current assignment को एक जगह
-            monitor करें।
+            qualification और current assignment को एक
+            जगह monitor करें।
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4">
-          <p className="text-xs uppercase tracking-wider text-slate-500">
-            Organization
-          </p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {canCreateLead ? (
+            <Link
+              href="/dashboard/leads/new"
+              className="inline-flex items-center justify-center rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+            >
+              Create lead
+            </Link>
+          ) : null}
 
-          <p className="mt-1 font-semibold text-white">
-            {context.organization?.name ??
-              "SalesSetu Workspace"}
-          </p>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 px-5 py-4">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Organization
+            </p>
+
+            <p className="mt-1 font-semibold text-white">
+              {context.organization?.name ??
+                "SalesSetu Workspace"}
+            </p>
+          </div>
         </div>
       </header>
 
+      {/* Summary cards */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
           <p className="text-sm text-slate-500">
@@ -213,7 +278,9 @@ export default async function LeadOperationsPage({
           </p>
 
           <p className="mt-2 text-3xl font-bold text-cyan-300">
-            {currentPageCount}
+            {currentPageCount.toLocaleString(
+              "en-IN",
+            )}
           </p>
         </article>
 
@@ -223,7 +290,7 @@ export default async function LeadOperationsPage({
           </p>
 
           <p className="mt-2 text-3xl font-bold text-emerald-300">
-            {approvedCount}
+            {approvedCount.toLocaleString("en-IN")}
           </p>
         </article>
 
@@ -238,11 +305,13 @@ export default async function LeadOperationsPage({
         </article>
       </section>
 
+      {/* Search and filters */}
       <LeadFilters
         filters={filters}
         sources={sources}
       />
 
+      {/* Result summary */}
       <div className="flex flex-col justify-between gap-3 text-sm text-slate-500 sm:flex-row sm:items-center">
         <p>
           Showing{" "}
@@ -251,7 +320,7 @@ export default async function LeadOperationsPage({
           </span>{" "}
           of{" "}
           <span className="font-medium text-slate-300">
-            {result.total}
+            {result.total.toLocaleString("en-IN")}
           </span>{" "}
           leads
         </p>
@@ -259,7 +328,9 @@ export default async function LeadOperationsPage({
         <p>
           Page{" "}
           <span className="font-medium text-slate-300">
-            {result.totalPages === 0 ? 0 : result.page}
+            {result.totalPages === 0
+              ? 0
+              : result.page}
           </span>{" "}
           of{" "}
           <span className="font-medium text-slate-300">
@@ -268,8 +339,10 @@ export default async function LeadOperationsPage({
         </p>
       </div>
 
+      {/* Lead table */}
       <LeadTable leads={result.items} />
 
+      {/* Pagination */}
       {result.totalPages > 1 ? (
         <nav
           aria-label="Lead pagination"
@@ -292,7 +365,8 @@ export default async function LeadOperationsPage({
           )}
 
           <span className="text-sm text-slate-400">
-            Page {result.page} of {result.totalPages}
+            Page {result.page} of{" "}
+            {result.totalPages}
           </span>
 
           {result.page < result.totalPages ? (
