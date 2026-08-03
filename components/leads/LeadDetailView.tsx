@@ -7,11 +7,29 @@ import type {
   LeadDetailRecord,
 } from "@/types/lead-detail";
 
+type LeadDetailAssignmentView = {
+  assignedToName: string | null;
+  assignedToEmail: string | null;
+  agentEmail: string | null;
+
+  teamName: string | null;
+  teamCode: string | null;
+
+  status: string;
+  assignmentStatus: string;
+
+  assignedAt: string | null;
+};
+
 type LeadDetailViewProps = {
   lead: LeadDetailRecord;
   access: LeadDetailAccess;
   canEditLead: boolean;
   successMessage?: string | null;
+
+  currentAssignment?:
+    | LeadDetailAssignmentView
+    | null;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -520,6 +538,7 @@ export default function LeadDetailView({
   access,
   canEditLead,
   successMessage,
+  currentAssignment,
 }: LeadDetailViewProps) {
   const leadRecord =
     lead as unknown as UnknownRecord;
@@ -537,13 +556,20 @@ export default function LeadDetailView({
     ) ?? EMPTY_RECORD;
 
   const assignment =
-    toRecord(
-      readValue(leadRecord, [
-        "assignment",
-        "currentAssignment",
-        "current_assignment",
-      ]),
-    ) ?? EMPTY_RECORD;
+    currentAssignment
+      ? (
+          currentAssignment as unknown as
+            UnknownRecord
+        )
+      : (
+          toRecord(
+            readValue(leadRecord, [
+              "assignment",
+              "currentAssignment",
+              "current_assignment",
+            ]),
+          ) ?? EMPTY_RECORD
+        );
 
   const qualification =
     toRecord(

@@ -1,0 +1,958 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import {
+  redirect,
+  RedirectType,
+} from "next/navigation";
+
+import {
+  requirePermissionAccess,
+} from "@/lib/auth/access-control";
+
+import {
+  manuallyAssignLead,
+  manuallyUnassignLead,
+  type LeadAssignmentServiceResult,
+} from "@/lib/leads/lead-assignment-service";
+
+import {
+  LEAD_LIFECYCLE_STAGES,
+  LEAD_OPERATIONAL_PERMISSIONS,
+  LEAD_STATUSES,
+  LEAD_TEMPERATURES,
+  OPERATIONAL_FORM_LIMITS,
+  isOperationalValue,
+} from "@/lib/leads/lead-operational-contract";
+
+import {
+  LeadStatusTransitionError,
+  transitionLeadStatusRecord,
+} from "@/lib/leads/lead-status-transition-service";
+
+import type {
+  LeadStatusTransitionValues,
+  OperationalActionState,
+  OperationalFieldErrors,
+} from "@/types/lead-operational-controls";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type StatusTransitionParseResult =
+  | {
+      success: true;
+      values: LeadStatusTransitionValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+type ManualAssignmentValues = {
+  leadId: string;
+  agentProfileId: string;
+  teamId: string | null;
+  reason: string;
+  overrideCapacity: boolean;
+};
+
+type ManualAssignmentParseResult =
+  | {
+      success: true;
+      values: ManualAssignmentValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+type ManualUnassignmentValues = {
+  leadId: string;
+  reason: string;
+};
+
+type ManualUnassignmentParseResult =
+  | {
+      success: true;
+      values: ManualUnassignmentValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+type AssignmentFailureResult = Extract<
+  LeadAssignmentServiceResult,
+  {
+    ok: false;
+  }
+>;
+
+function getFormString(
+  formData: FormData,
+  fieldName: string,
+): string {
+  const value =
+    formData.get(fieldName);
+
+  return typeof value === "string"
+    ? value
+    : "";
+}
+
+function getFormBoolean(
+  formData: FormData,
+  fieldName: string,
+): boolean {
+  const value =
+    getFormString(
+      formData,
+      fieldName,
+    )
+      .trim()
+      .toLowerCase();
+
+  return [
+    "1",
+    "true",
+    "on",
+    "yes",
+  ].includes(value);
+}
+
+function normalizeSingleLine(
+  value: string,
+): string {
+  return value
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeMultiline(
+  value: string,
+): string {
+  return value
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
+function addFieldError(
+  errors: OperationalFieldErrors,
+  fieldName: string,
+  message: string,
+): void {
+  const existingErrors =
+    errors[fieldName] ?? [];
+
+  errors[fieldName] = [
+    ...existingErrors,
+    message,
+  ];
+}
+
+function hasFieldErrors(
+  errors: OperationalFieldErrors,
+): boolean {
+  return Object.values(errors).some(
+    (messages) =>
+      Array.isArray(messages) &&
+      messages.length > 0,
+  );
+}
+
+function createErrorState(
+  message: string,
+  fieldErrors:
+    OperationalFieldErrors = {},
+): OperationalActionState {
+  return {
+    status: "error",
+    message,
+    fieldErrors,
+  };
+}
+
+function parseStatusTransitionForm(
+  formData: FormData,
+): StatusTransitionParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const leadId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "leadId",
+      ),
+    );
+
+  const expectedUpdatedAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "expectedUpdatedAt",
+      ),
+    );
+
+  const leadStatus =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "leadStatus",
+      ),
+    );
+
+  const lifecycleStage =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "lifecycleStage",
+      ),
+    );
+
+  const leadTemperature =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "leadTemperature",
+      ),
+    );
+
+  const reason =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "reason",
+      ),
+    );
+
+  if (!leadId) {
+    addFieldError(
+      fieldErrors,
+      "leadId",
+      "Lead ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(leadId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "leadId",
+      "Lead ID is not a valid UUID.",
+    );
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is required.",
+    );
+  } else {
+    const parsedTimestamp =
+      new Date(expectedUpdatedAt);
+
+    if (
+      Number.isNaN(
+        parsedTimestamp.getTime(),
+      )
+    ) {
+      addFieldError(
+        fieldErrors,
+        "expectedUpdatedAt",
+        "The original update timestamp is invalid.",
+      );
+    }
+  }
+
+  if (
+    !isOperationalValue(
+      leadStatus,
+      LEAD_STATUSES,
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "leadStatus",
+      "Select a valid lead status.",
+    );
+  }
+
+  if (
+    !isOperationalValue(
+      lifecycleStage,
+      LEAD_LIFECYCLE_STAGES,
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "lifecycleStage",
+      "Select a valid lifecycle stage.",
+    );
+  }
+
+  if (
+    leadTemperature &&
+    !isOperationalValue(
+      leadTemperature,
+      LEAD_TEMPERATURES,
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "leadTemperature",
+      "Select a valid lead temperature.",
+    );
+  }
+
+  if (!reason) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      "Enter a reason for this status transition.",
+    );
+  } else if (
+    reason.length >
+    OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      `Reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  if (
+    hasFieldErrors(fieldErrors)
+  ) {
+    return {
+      success: false,
+      message:
+        "Please correct the highlighted status-transition fields.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+
+    values: {
+      leadId,
+      expectedUpdatedAt,
+
+      leadStatus:
+        leadStatus as LeadStatusTransitionValues["leadStatus"],
+
+      lifecycleStage:
+        lifecycleStage as LeadStatusTransitionValues["lifecycleStage"],
+
+      leadTemperature:
+        leadTemperature as LeadStatusTransitionValues["leadTemperature"],
+
+      reason,
+    },
+  };
+}
+
+function parseManualAssignmentForm(
+  formData: FormData,
+): ManualAssignmentParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const leadId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "leadId",
+      ),
+    );
+
+  const agentProfileId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "agentProfileId",
+      ),
+    );
+
+  const normalizedTeamId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "teamId",
+      ),
+    );
+
+  const reason =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "reason",
+      ),
+    );
+
+  const overrideCapacity =
+    getFormBoolean(
+      formData,
+      "overrideCapacity",
+    );
+
+  if (!leadId) {
+    addFieldError(
+      fieldErrors,
+      "leadId",
+      "Lead ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(leadId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "leadId",
+      "Lead ID is not a valid UUID.",
+    );
+  }
+
+  if (!agentProfileId) {
+    addFieldError(
+      fieldErrors,
+      "agentProfileId",
+      "Select an agent for this lead.",
+    );
+  } else if (
+    !UUID_PATTERN.test(
+      agentProfileId,
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "agentProfileId",
+      "The selected agent profile is invalid.",
+    );
+  }
+
+  if (
+    normalizedTeamId &&
+    !UUID_PATTERN.test(
+      normalizedTeamId,
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "teamId",
+      "The selected assignment team is invalid.",
+    );
+  }
+
+  if (!reason) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      "Enter a reason for assigning this lead.",
+    );
+  } else if (
+    reason.length >
+    OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      `Reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  if (
+    hasFieldErrors(fieldErrors)
+  ) {
+    return {
+      success: false,
+      message:
+        "Please correct the highlighted assignment fields.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+
+    values: {
+      leadId,
+      agentProfileId,
+
+      teamId:
+        normalizedTeamId || null,
+
+      reason,
+      overrideCapacity,
+    },
+  };
+}
+
+function parseManualUnassignmentForm(
+  formData: FormData,
+): ManualUnassignmentParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const leadId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "leadId",
+      ),
+    );
+
+  const reason =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "reason",
+      ),
+    );
+
+  if (!leadId) {
+    addFieldError(
+      fieldErrors,
+      "leadId",
+      "Lead ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(leadId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "leadId",
+      "Lead ID is not a valid UUID.",
+    );
+  }
+
+  if (!reason) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      "Enter a reason for removing this assignment.",
+    );
+  } else if (
+    reason.length >
+    OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      `Reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  if (
+    hasFieldErrors(fieldErrors)
+  ) {
+    return {
+      success: false,
+      message:
+        "Please correct the highlighted unassignment fields.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+
+    values: {
+      leadId,
+      reason,
+    },
+  };
+}
+
+function mapTransitionError(
+  error: unknown,
+): OperationalActionState {
+  if (
+    !(
+      error instanceof
+      LeadStatusTransitionError
+    )
+  ) {
+    console.error(
+      "Unexpected lead status transition error:",
+      error,
+    );
+
+    return createErrorState(
+      "The lead status could not be changed. Please try again.",
+    );
+  }
+
+  switch (error.kind) {
+    case "conflict":
+      return {
+        status: "conflict",
+        message: error.message,
+
+        fieldErrors: {
+          expectedUpdatedAt: [
+            "The lead has changed since this page was loaded.",
+          ],
+        },
+      };
+
+    case "not_found":
+      return createErrorState(
+        error.message,
+        {
+          leadId: [
+            error.message,
+          ],
+        },
+      );
+
+    case "permission_denied":
+      return createErrorState(
+        error.message,
+      );
+
+    case "invalid_transition":
+      return createErrorState(
+        error.message,
+      );
+
+    case "database_error":
+    default:
+      console.error(
+        "Lead status transition database error:",
+        error,
+      );
+
+      return createErrorState(
+        error.message,
+      );
+  }
+}
+
+function mapAssignmentFailure(
+  result: AssignmentFailureResult,
+): OperationalActionState {
+  switch (result.code) {
+    case "conflict":
+      return {
+        status: "conflict",
+        message: result.message,
+        fieldErrors: {},
+      };
+
+    case "not_found":
+      return createErrorState(
+        result.message,
+        {
+          leadId: [
+            result.message,
+          ],
+        },
+      );
+
+    case "capacity_reached":
+      return createErrorState(
+        result.message,
+        {
+          agentProfileId: [
+            result.message,
+          ],
+        },
+      );
+
+    case "agent_unavailable":
+      return createErrorState(
+        result.message,
+        {
+          agentProfileId: [
+            result.message,
+          ],
+        },
+      );
+
+    case "validation":
+      return createErrorState(
+        result.message,
+      );
+
+    case "permission_denied":
+      return createErrorState(
+        result.message,
+      );
+
+    case "database_error":
+    default:
+      console.error(
+        "Lead assignment database error:",
+        result,
+      );
+
+      return createErrorState(
+        result.message,
+      );
+  }
+}
+
+function revalidateLeadOperationalPaths(
+  leadId: string,
+): void {
+  revalidatePath(
+    "/dashboard",
+  );
+
+  revalidatePath(
+    "/dashboard/leads",
+  );
+
+  revalidatePath(
+    `/dashboard/leads/${leadId}`,
+  );
+}
+
+export async function transitionLeadStatusAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .updateLeadStatus,
+      ],
+
+      loginRedirectTo:
+        "/login?next=/dashboard/leads",
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to change lead status.",
+    );
+  }
+
+  const parsed =
+    parseStatusTransitionForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  let transitionResult: {
+    leadId: string;
+    updatedAt: string;
+  };
+
+  try {
+    transitionResult =
+      await transitionLeadStatusRecord(
+        organizationId,
+        parsed.values,
+      );
+  } catch (error) {
+    return mapTransitionError(
+      error,
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    transitionResult.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${transitionResult.leadId}?statusUpdated=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function manualAssignLeadAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseManualAssignmentForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const requiredPermissions: string[] = [
+  LEAD_OPERATIONAL_PERMISSIONS
+    .viewLeads,
+
+  LEAD_OPERATIONAL_PERMISSIONS
+    .manualAssign,
+];
+
+  if (
+    parsed.values.overrideCapacity
+  ) {
+    requiredPermissions.push(
+      LEAD_OPERATIONAL_PERMISSIONS
+        .overrideAssignment,
+    );
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf:
+        requiredPermissions,
+
+      loginRedirectTo:
+        `/login?next=/dashboard/leads/${parsed.values.leadId}`,
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to assign this lead.",
+    );
+  }
+
+  const assignmentResult =
+    await manuallyAssignLead({
+      leadId:
+        parsed.values.leadId,
+
+      agentProfileId:
+        parsed.values.agentProfileId,
+
+      teamId:
+        parsed.values.teamId,
+
+      reason:
+        parsed.values.reason,
+
+      overrideCapacity:
+        parsed.values.overrideCapacity,
+    });
+
+  if (!assignmentResult.ok) {
+    return mapAssignmentFailure(
+      assignmentResult,
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    parsed.values.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${parsed.values.leadId}?assignmentUpdated=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function manualUnassignLeadAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseManualUnassignmentForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .unassign,
+      ],
+
+      loginRedirectTo:
+        `/login?next=/dashboard/leads/${parsed.values.leadId}`,
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to remove this assignment.",
+    );
+  }
+
+  const unassignmentResult =
+    await manuallyUnassignLead({
+      leadId:
+        parsed.values.leadId,
+
+      reason:
+        parsed.values.reason,
+    });
+
+  if (!unassignmentResult.ok) {
+    return mapAssignmentFailure(
+      unassignmentResult,
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    parsed.values.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${parsed.values.leadId}?assignmentRemoved=1`,
+    RedirectType.replace,
+  );
+}
