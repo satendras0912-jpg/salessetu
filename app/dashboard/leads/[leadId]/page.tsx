@@ -170,6 +170,21 @@ function getSuccessMessage(
       searchParams.assignmentRemoved,
     ) === "1";
 
+  const followUpWasCreated =
+    getSingleValue(
+      searchParams.followUpCreated,
+    ) === "1";
+
+  const followUpWasAssigned =
+    getSingleValue(
+      searchParams.followUpAssigned,
+    ) === "1";
+
+  const followUpWasCompleted =
+    getSingleValue(
+      searchParams.followUpCompleted,
+    ) === "1";
+
   if (wasCreated) {
     return "Lead created successfully.";
   }
@@ -188,6 +203,18 @@ function getSuccessMessage(
 
   if (assignmentWasRemoved) {
     return "Lead assignment removed successfully.";
+  }
+
+  if (followUpWasCreated) {
+    return "Follow-up created successfully.";
+  }
+
+  if (followUpWasAssigned) {
+    return "Follow-up assigned successfully.";
+  }
+
+  if (followUpWasCompleted) {
+    return "Follow-up completed successfully.";
   }
 
   return null;
