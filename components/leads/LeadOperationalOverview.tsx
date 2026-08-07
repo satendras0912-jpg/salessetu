@@ -1,3 +1,6 @@
+﻿import AssignFollowUpForm from "@/components/leads/AssignFollowUpForm";
+import CompleteFollowUpForm from "@/components/leads/CompleteFollowUpForm";
+import CreateFollowUpForm from "@/components/leads/CreateFollowUpForm";
 import LeadAssignmentForm from "@/components/leads/LeadAssignmentForm";
 import LeadStatusTransitionForm from "@/components/leads/LeadStatusTransitionForm";
 
@@ -22,13 +25,13 @@ function formatDateTime(
   value: string | null,
 ): string {
   if (!value) {
-    return "—";
+    return "â€”";
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "—";
+    return "â€”";
   }
 
   return new Intl.DateTimeFormat(
@@ -39,6 +42,17 @@ function formatDateTime(
       timeZone: "Asia/Kolkata",
     },
   ).format(date);
+}
+
+function isTerminalFollowUpStatus(
+  status: string,
+): boolean {
+  return [
+    "completed",
+    "cancelled",
+    "failed",
+    "rescheduled",
+  ].includes(status);
 }
 
 function StatusBadge({
@@ -122,6 +136,27 @@ export default function LeadOperationalOverview({
   const assignmentFormKey =
     currentAssignment?.id ??
     `unassigned-${snapshot.updatedAt}`;
+
+  const activeFollowUps =
+    followUps.filter(
+      (task) =>
+        !isTerminalFollowUpStatus(
+          task.status,
+        ),
+    );
+
+  const nextFollowUp =
+    activeFollowUps[0] ?? null;
+
+  const defaultFollowUpAssignee =
+    currentAssignment &&
+    members.some(
+      (member) =>
+        member.userId ===
+        currentAssignment.assignedUserId,
+    )
+      ? currentAssignment.assignedUserId
+      : null;
 
   return (
     <section className="space-y-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-6 sm:p-8">
@@ -243,7 +278,7 @@ export default function LeadOperationalOverview({
                   </dt>
 
                   <dd className="mt-1 font-medium text-slate-200">
-                    {assignedAgent?.agentCode ?? "—"}
+                    {assignedAgent?.agentCode ?? "â€”"}
                   </dd>
                 </div>
 
@@ -253,7 +288,7 @@ export default function LeadOperationalOverview({
                   </dt>
 
                   <dd className="mt-1 font-medium text-slate-200">
-                    {assignedTeam?.name ?? "—"}
+                    {assignedTeam?.name ?? "â€”"}
                   </dd>
                 </div>
 
@@ -350,32 +385,36 @@ export default function LeadOperationalOverview({
               />
             </div>
 
-            {followUps.length > 0 ? (
-              <div className="mt-5 space-y-3">
-                {followUps
-                  .slice(0, 5)
-                  .map((task) => (
-                    <div
-                      key={task.id}
-                      className="rounded-xl border border-slate-800 bg-slate-900/60 p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="font-medium text-slate-200">
-                          {task.title}
-                        </p>
+            <p className="mt-5 text-3xl font-bold text-white">
+              {followUps.length}
+            </p>
 
-                        <StatusBadge
-                          value={task.status}
-                        />
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <p className="mt-5 text-sm text-slate-500">
-                No follow-up task is recorded.
+            <p className="mt-2 text-sm text-slate-500">
+              {activeFollowUps.length} active task
+              {activeFollowUps.length === 1
+                ? ""
+                : "s"}
+            </p>
+
+            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Next due
               </p>
-            )}
+
+              <p className="mt-2 text-sm font-medium text-slate-200">
+                {nextFollowUp
+                  ? nextFollowUp.title
+                  : "No active follow-up"}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                {nextFollowUp
+                  ? formatDateTime(
+                      nextFollowUp.dueAt,
+                    )
+                  : "â€”"}
+              </p>
+            </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
               <ActionBadge
@@ -489,6 +528,227 @@ export default function LeadOperationalOverview({
           </article>
         ) : null}
       </div>
+
+      {access.canViewFollowUps ? (
+        <section className="space-y-6 rounded-2xl border border-slate-800 bg-slate-950/40 p-5 sm:p-6">
+          <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400">
+                Follow-up workspace
+              </p>
+
+              <h3 className="mt-3 text-xl font-semibold text-white">
+                Customer action queue
+              </h3>
+
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Create, assign and complete lead follow-ups through
+                permission-controlled server actions.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <ActionBadge
+                label="Create"
+                allowed={access.canCreateFollowUp}
+              />
+
+              <ActionBadge
+                label="Assign"
+                allowed={access.canAssignFollowUp}
+              />
+
+              <ActionBadge
+                label="Complete"
+                allowed={access.canCompleteFollowUp}
+              />
+            </div>
+          </header>
+
+          {access.canCreateFollowUp ? (
+            <CreateFollowUpForm
+              key={`create-follow-up-${snapshot.updatedAt}`}
+              leadId={snapshot.leadId}
+              members={members}
+              defaultAssignedTo={
+                defaultFollowUpAssignee
+              }
+            />
+          ) : null}
+
+          {followUps.length > 0 ? (
+            <div className="space-y-5">
+              {followUps.map((task) => {
+                const taskAssignedMember =
+                  task.assignedTo
+                    ? members.find(
+                        (member) =>
+                          member.userId ===
+                          task.assignedTo,
+                      ) ?? null
+                    : null;
+
+                const terminalTask =
+                  isTerminalFollowUpStatus(
+                    task.status,
+                  );
+
+                return (
+                  <article
+                    key={task.id}
+                    className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5"
+                  >
+                    <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge
+                            value={task.status}
+                          />
+
+                          <span className="inline-flex rounded-full border border-slate-800 bg-slate-950 px-3 py-1 text-xs font-semibold text-slate-400">
+                            {formatOperationalLabel(
+                              task.priority,
+                            )}
+                          </span>
+                        </div>
+
+                        <h4 className="mt-3 text-lg font-semibold text-white">
+                          {task.title}
+                        </h4>
+
+                        {task.description ? (
+                          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                            {task.description}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <p className="text-xs leading-5 text-slate-500">
+                        Updated{" "}
+                        {formatDateTime(
+                          task.updatedAt,
+                        )}
+                      </p>
+                    </div>
+
+                    <dl className="mt-5 grid gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-sm sm:grid-cols-2 xl:grid-cols-5">
+                      <div>
+                        <dt className="text-xs uppercase tracking-wider text-slate-500">
+                          Type
+                        </dt>
+
+                        <dd className="mt-1 font-medium text-slate-200">
+                          {formatOperationalLabel(
+                            task.followUpType,
+                          )}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt className="text-xs uppercase tracking-wider text-slate-500">
+                          Due
+                        </dt>
+
+                        <dd className="mt-1 font-medium text-slate-200">
+                          {formatDateTime(
+                            task.dueAt,
+                          )}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt className="text-xs uppercase tracking-wider text-slate-500">
+                          Reminder
+                        </dt>
+
+                        <dd className="mt-1 font-medium text-slate-200">
+                          {formatDateTime(
+                            task.reminderAt,
+                          )}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt className="text-xs uppercase tracking-wider text-slate-500">
+                          Assigned to
+                        </dt>
+
+                        <dd className="mt-1 font-medium text-slate-200">
+                          {taskAssignedMember
+                            ?.displayName ??
+                            task.assignedTo ??
+                            "Unassigned"}
+                        </dd>
+                      </div>
+
+                      <div>
+                        <dt className="text-xs uppercase tracking-wider text-slate-500">
+                          Escalation
+                        </dt>
+
+                        <dd className="mt-1 font-medium text-slate-200">
+                          Level{" "}
+                          {task.escalationLevel}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    {task.completionOutcome ? (
+                      <div className="mt-4 rounded-xl border border-emerald-900/60 bg-emerald-950/20 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+                          Completion outcome
+                        </p>
+
+                        <p className="mt-2 text-sm font-medium text-emerald-100">
+                          {task.completionOutcome}
+                        </p>
+
+                        {task.completionNotes ? (
+                          <p className="mt-2 text-sm leading-6 text-slate-400">
+                            {task.completionNotes}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {!terminalTask &&
+                    (access.canAssignFollowUp ||
+                      access.canCompleteFollowUp) ? (
+                      <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                        {access.canAssignFollowUp ? (
+                          <AssignFollowUpForm
+                            key={`assign-${task.id}-${task.updatedAt}`}
+                            task={task}
+                            members={members}
+                          />
+                        ) : null}
+
+                        {access.canCompleteFollowUp ? (
+                          <CompleteFollowUpForm
+                            key={`complete-${task.id}-${task.updatedAt}`}
+                            task={task}
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-8 text-center">
+              <p className="text-sm font-medium text-slate-300">
+                No follow-up task is recorded.
+              </p>
+
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Create the first task to establish the lead&apos;s next
+                customer action.
+              </p>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {access.canViewAssignments &&
       (access.canManualAssign ||

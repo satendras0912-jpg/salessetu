@@ -17,11 +17,20 @@ import {
 } from "@/lib/leads/lead-assignment-service";
 
 import {
+  assignFollowUpTask,
+  completeFollowUpTask,
+  createFollowUpTask,
+  type FollowUpTaskServiceResult,
+} from "@/lib/leads/follow-up-task-service";
+
+import {
+  FOLLOW_UP_TYPES,
   LEAD_LIFECYCLE_STAGES,
   LEAD_OPERATIONAL_PERMISSIONS,
   LEAD_STATUSES,
   LEAD_TEMPERATURES,
   OPERATIONAL_FORM_LIMITS,
+  OPERATIONAL_PRIORITIES,
   isOperationalValue,
 } from "@/lib/leads/lead-operational-contract";
 
@@ -31,6 +40,9 @@ import {
 } from "@/lib/leads/lead-status-transition-service";
 
 import type {
+  AssignFollowUpValues,
+  CompleteFollowUpValues,
+  CreateFollowUpValues,
   LeadStatusTransitionValues,
   OperationalActionState,
   OperationalFieldErrors,
@@ -85,8 +97,48 @@ type ManualUnassignmentParseResult =
       fieldErrors: OperationalFieldErrors;
     };
 
+type CreateFollowUpParseResult =
+  | {
+      success: true;
+      values: CreateFollowUpValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+type AssignFollowUpParseResult =
+  | {
+      success: true;
+      values: AssignFollowUpValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+type CompleteFollowUpParseResult =
+  | {
+      success: true;
+      values: CompleteFollowUpValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
 type AssignmentFailureResult = Extract<
   LeadAssignmentServiceResult,
+  {
+    ok: false;
+  }
+>;
+
+type FollowUpFailureResult = Extract<
+  FollowUpTaskServiceResult,
   {
     ok: false;
   }
@@ -248,6 +300,7 @@ function parseStatusTransitionForm(
   }
 
   if (!expectedUpdatedAt) {
+
     addFieldError(
       fieldErrors,
       "expectedUpdatedAt",
@@ -498,6 +551,7 @@ function parseManualUnassignmentForm(
   formData: FormData,
 ): ManualUnassignmentParseResult {
   const fieldErrors:
+
     OperationalFieldErrors = {};
 
   const leadId =
@@ -566,6 +620,507 @@ function parseManualUnassignmentForm(
     values: {
       leadId,
       reason,
+    },
+  };
+}
+
+function parseCreateFollowUpForm(
+  formData: FormData,
+): CreateFollowUpParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const leadId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "leadId",
+      ),
+    );
+
+  const title =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "title",
+      ),
+    );
+
+  const description =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "description",
+      ),
+    );
+
+  const followUpType =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "followUpType",
+      ),
+    );
+
+  const priority =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "priority",
+      ),
+    );
+
+  const assignedTo =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "assignedTo",
+      ),
+    );
+
+  const dueAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "dueAt",
+      ),
+    );
+
+  const reminderAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "reminderAt",
+      ),
+    );
+
+  if (!leadId) {
+    addFieldError(
+      fieldErrors,
+      "leadId",
+      "Lead ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(leadId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "leadId",
+      "Lead ID is not a valid UUID.",
+    );
+  }
+
+  if (!title) {
+    addFieldError(
+      fieldErrors,
+      "title",
+      "Enter a title for this follow-up.",
+    );
+  } else if (
+    title.length >
+    OPERATIONAL_FORM_LIMITS.title
+  ) {
+    addFieldError(
+      fieldErrors,
+      "title",
+      `Title must not exceed ${OPERATIONAL_FORM_LIMITS.title} characters.`,
+    );
+  }
+
+  if (
+    description.length >
+    OPERATIONAL_FORM_LIMITS.mediumText
+  ) {
+    addFieldError(
+      fieldErrors,
+      "description",
+      `Description must not exceed ${OPERATIONAL_FORM_LIMITS.mediumText} characters.`,
+    );
+  }
+
+  if (
+    !isOperationalValue(
+      followUpType,
+      FOLLOW_UP_TYPES,
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "followUpType",
+      "Select a valid follow-up type.",
+    );
+  }
+
+  if (
+    !isOperationalValue(
+      priority,
+      OPERATIONAL_PRIORITIES,
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "priority",
+      "Select a valid follow-up priority.",
+    );
+  }
+
+  if (
+    assignedTo &&
+    !UUID_PATTERN.test(assignedTo)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "assignedTo",
+      "The selected assignee is invalid.",
+    );
+  }
+
+  let parsedDueAt:
+    Date | null = null;
+
+  if (!dueAt) {
+    addFieldError(
+      fieldErrors,
+      "dueAt",
+      "Select a due date and time.",
+    );
+  } else {
+    parsedDueAt =
+      new Date(dueAt);
+
+    if (
+      Number.isNaN(
+        parsedDueAt.getTime(),
+      )
+    ) {
+      parsedDueAt = null;
+
+      addFieldError(
+        fieldErrors,
+        "dueAt",
+        "The due date and time are invalid.",
+      );
+    }
+  }
+
+  if (reminderAt) {
+    const parsedReminderAt =
+      new Date(reminderAt);
+
+    if (
+      Number.isNaN(
+        parsedReminderAt.getTime(),
+      )
+    ) {
+      addFieldError(
+        fieldErrors,
+        "reminderAt",
+        "The reminder date and time are invalid.",
+      );
+    } else if (
+      parsedDueAt &&
+      parsedReminderAt.getTime() >
+        parsedDueAt.getTime()
+    ) {
+      addFieldError(
+        fieldErrors,
+        "reminderAt",
+        "The reminder must be on or before the due time.",
+      );
+    }
+  }
+
+  if (
+    hasFieldErrors(fieldErrors)
+  ) {
+    return {
+      success: false,
+      message:
+        "Please correct the highlighted follow-up fields.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+
+    values: {
+      leadId,
+      title,
+      description,
+
+      followUpType:
+        followUpType as
+          CreateFollowUpValues["followUpType"],
+
+      priority:
+        priority as
+          CreateFollowUpValues["priority"],
+
+      assignedTo,
+      dueAt,
+      reminderAt,
+    },
+  };
+}
+
+function parseAssignFollowUpForm(
+  formData: FormData,
+): AssignFollowUpParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const taskId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "taskId",
+      ),
+    );
+
+  const expectedUpdatedAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "expectedUpdatedAt",
+      ),
+    );
+
+  const assignedTo =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "assignedTo",
+      ),
+    );
+
+  const reason =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "reason",
+      ),
+    );
+
+  if (!taskId) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "Follow-up task ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(taskId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "The follow-up task ID is invalid.",
+    );
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is required.",
+    );
+  } else {
+    const parsedTimestamp =
+      new Date(expectedUpdatedAt);
+
+    if (
+      Number.isNaN(
+        parsedTimestamp.getTime(),
+      )
+    ) {
+      addFieldError(
+        fieldErrors,
+        "expectedUpdatedAt",
+        "The original update timestamp is invalid.",
+      );
+    }
+  }
+
+  if (!assignedTo) {
+    addFieldError(
+      fieldErrors,
+      "assignedTo",
+      "Select an organization member.",
+    );
+  } else if (
+    !UUID_PATTERN.test(assignedTo)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "assignedTo",
+      "The selected assignee is invalid.",
+    );
+  }
+
+  if (!reason) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      "Enter a reason for assigning this follow-up.",
+    );
+  } else if (
+    reason.length >
+    OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      `Reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  if (
+    hasFieldErrors(fieldErrors)
+  ) {
+    return {
+      success: false,
+      message:
+        "Please correct the highlighted follow-up assignment fields.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+
+    values: {
+      taskId,
+      expectedUpdatedAt,
+      assignedTo,
+      reason,
+    },
+  };
+}
+
+function parseCompleteFollowUpForm(
+  formData: FormData,
+): CompleteFollowUpParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const taskId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "taskId",
+      ),
+    );
+
+  const expectedUpdatedAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "expectedUpdatedAt",
+      ),
+    );
+
+  const outcome =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "outcome",
+      ),
+    );
+
+  const notes =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "notes",
+      ),
+    );
+
+  if (!taskId) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "Follow-up task ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(taskId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "The follow-up task ID is invalid.",
+    );
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is required.",
+    );
+  } else {
+    const parsedTimestamp =
+      new Date(expectedUpdatedAt);
+
+    if (
+      Number.isNaN(
+        parsedTimestamp.getTime(),
+      )
+    ) {
+      addFieldError(
+        fieldErrors,
+        "expectedUpdatedAt",
+        "The original update timestamp is invalid.",
+      );
+    }
+  }
+
+  if (!outcome) {
+    addFieldError(
+      fieldErrors,
+      "outcome",
+      "Enter the outcome of this follow-up.",
+    );
+  } else if (
+    outcome.length >
+    OPERATIONAL_FORM_LIMITS.shortText
+  ) {
+    addFieldError(
+      fieldErrors,
+      "outcome",
+      `Outcome must not exceed ${OPERATIONAL_FORM_LIMITS.shortText} characters.`,
+    );
+  }
+
+  if (
+    notes.length >
+    OPERATIONAL_FORM_LIMITS.notes
+  ) {
+    addFieldError(
+      fieldErrors,
+      "notes",
+      `Notes must not exceed ${OPERATIONAL_FORM_LIMITS.notes} characters.`,
+    );
+  }
+
+  if (
+    hasFieldErrors(fieldErrors)
+  ) {
+    return {
+      success: false,
+      message:
+        "Please correct the highlighted follow-up completion fields.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+
+    values: {
+      taskId,
+      expectedUpdatedAt,
+      outcome,
+      notes,
     },
   };
 }
@@ -699,6 +1254,83 @@ function mapAssignmentFailure(
   }
 }
 
+function mapFollowUpFailure(
+  result: FollowUpFailureResult,
+  operation:
+    | "create"
+    | "assign"
+    | "complete",
+): OperationalActionState {
+  switch (result.code) {
+    case "conflict":
+      return {
+        status: "conflict",
+        message: result.message,
+
+        fieldErrors: {
+          expectedUpdatedAt: [
+            "The follow-up changed after this form was opened.",
+          ],
+        },
+      };
+
+    case "not_found":
+      return createErrorState(
+        result.message,
+        operation === "create"
+          ? {
+              leadId: [
+                result.message,
+              ],
+            }
+          : {
+              taskId: [
+                result.message,
+              ],
+            },
+      );
+
+    case "invalid_assignee":
+      return createErrorState(
+        result.message,
+        {
+          assignedTo: [
+            result.message,
+          ],
+        },
+      );
+
+    case "validation":
+      return createErrorState(
+        result.message,
+      );
+
+    case "permission_denied":
+      return createErrorState(
+        result.message,
+      );
+
+    case "invalid_state":
+      return createErrorState(
+        result.message,
+      );
+
+    case "database_error":
+    default:
+      console.error(
+        "Follow-up task database error:",
+        {
+          operation,
+          result,
+        },
+      );
+
+      return createErrorState(
+        result.message,
+      );
+  }
+}
+
 function revalidateLeadOperationalPaths(
   leadId: string,
 ): void {
@@ -813,12 +1445,12 @@ export async function manualAssignLeadAction(
   }
 
   const requiredPermissions: string[] = [
-  LEAD_OPERATIONAL_PERMISSIONS
-    .viewLeads,
+    LEAD_OPERATIONAL_PERMISSIONS
+      .viewLeads,
 
-  LEAD_OPERATIONAL_PERMISSIONS
-    .manualAssign,
-];
+    LEAD_OPERATIONAL_PERMISSIONS
+      .manualAssign,
+  ];
 
   if (
     parsed.values.overrideCapacity
@@ -953,6 +1585,219 @@ export async function manualUnassignLeadAction(
 
   redirect(
     `/dashboard/leads/${parsed.values.leadId}?assignmentRemoved=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function createFollowUpAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseCreateFollowUpForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .createFollowUp,
+      ],
+
+      loginRedirectTo:
+        `/login?next=/dashboard/leads/${parsed.values.leadId}`,
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to create a follow-up.",
+    );
+  }
+
+  const result =
+    await createFollowUpTask(
+      organizationId,
+      parsed.values,
+    );
+
+  if (!result.ok) {
+    return mapFollowUpFailure(
+      result,
+      "create",
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    result.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${result.leadId}?followUpCreated=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function assignFollowUpAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseAssignFollowUpForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .assignFollowUp,
+      ],
+
+      loginRedirectTo:
+        "/login?next=/dashboard/leads",
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to assign a follow-up.",
+    );
+  }
+
+  const result =
+    await assignFollowUpTask(
+      organizationId,
+      parsed.values,
+    );
+
+  if (!result.ok) {
+    return mapFollowUpFailure(
+      result,
+      "assign",
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    result.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${result.leadId}?followUpAssigned=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function completeFollowUpAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseCompleteFollowUpForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .completeFollowUp,
+      ],
+
+      loginRedirectTo:
+        "/login?next=/dashboard/leads",
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to complete a follow-up.",
+    );
+  }
+
+  const result =
+    await completeFollowUpTask(
+      organizationId,
+      parsed.values,
+    );
+
+  if (!result.ok) {
+    return mapFollowUpFailure(
+      result,
+      "complete",
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    result.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${result.leadId}?followUpCompleted=1`,
     RedirectType.replace,
   );
 }
