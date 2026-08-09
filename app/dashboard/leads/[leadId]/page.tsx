@@ -217,6 +217,60 @@ function getSuccessMessage(
     return "Follow-up completed successfully.";
   }
 
+    const siteVisitWasCreated =
+    getSingleValue(
+      searchParams.siteVisitCreated,
+    ) === "1";
+
+  const siteVisitWasAssigned =
+    getSingleValue(
+      searchParams.siteVisitAssigned,
+    ) === "1";
+
+  const siteVisitWasCheckedIn =
+    getSingleValue(
+      searchParams.siteVisitCheckedIn,
+    ) === "1";
+
+  const siteVisitWasCheckedOut =
+    getSingleValue(
+      searchParams.siteVisitCheckedOut,
+    ) === "1";
+
+  const siteVisitWasCompleted =
+    getSingleValue(
+      searchParams.siteVisitCompleted,
+    ) === "1";
+
+  const siteVisitWasCancelled =
+    getSingleValue(
+      searchParams.siteVisitCancelled,
+    ) === "1";
+
+      if (siteVisitWasCreated) {
+    return "Site visit created successfully.";
+  }
+
+  if (siteVisitWasAssigned) {
+    return "Site visit assigned successfully.";
+  }
+
+  if (siteVisitWasCheckedIn) {
+    return "Site visit check-in recorded successfully.";
+  }
+
+  if (siteVisitWasCheckedOut) {
+    return "Site visit check-out recorded successfully.";
+  }
+
+  if (siteVisitWasCompleted) {
+    return "Site visit completed successfully.";
+  }
+
+  if (siteVisitWasCancelled) {
+    return "Site visit cancelled successfully.";
+  }
+
   return null;
 }
 
