@@ -3,6 +3,12 @@ import CompleteFollowUpForm from "@/components/leads/CompleteFollowUpForm";
 import CreateFollowUpForm from "@/components/leads/CreateFollowUpForm";
 import LeadAssignmentForm from "@/components/leads/LeadAssignmentForm";
 import LeadStatusTransitionForm from "@/components/leads/LeadStatusTransitionForm";
+import AssignSiteVisitForm from "@/components/leads/AssignSiteVisitForm";
+import CancelSiteVisitForm from "@/components/leads/CancelSiteVisitForm";
+import CheckInSiteVisitForm from "@/components/leads/CheckInSiteVisitForm";
+import CheckOutSiteVisitForm from "@/components/leads/CheckOutSiteVisitForm";
+import CompleteSiteVisitForm from "@/components/leads/CompleteSiteVisitForm";
+import CreateSiteVisitForm from "@/components/leads/CreateSiteVisitForm";
 
 import {
   formatOperationalLabel,
@@ -85,6 +91,77 @@ function ActionBadge({
       {label}
     </span>
   );
+}
+
+function isTerminalSiteVisitStatus(
+  status: string,
+): boolean {
+  return [
+    "completed",
+    "cancelled",
+    "no_show",
+    "failed",
+  ].includes(status);
+}
+
+function canCheckInSiteVisitStatus(
+  status: string,
+): boolean {
+  return [
+    "scheduled",
+    "confirmed",
+    "agent_en_route",
+    "customer_en_route",
+    "rescheduled",
+    "checked_in",
+    "in_progress",
+  ].includes(status);
+}
+
+function canCheckOutSiteVisitStatus(
+  status: string,
+): boolean {
+  return [
+    "checked_in",
+    "in_progress",
+    "completed",
+  ].includes(status);
+}
+
+function canCompleteSiteVisitStatus(
+  status: string,
+): boolean {
+  return [
+    "scheduled",
+    "confirmed",
+    "agent_en_route",
+    "customer_en_route",
+    "rescheduled",
+    "checked_in",
+    "in_progress",
+  ].includes(status);
+}
+
+function canCancelSiteVisitStatus(
+  status: string,
+): boolean {
+  return ![
+    "completed",
+    "cancelled",
+    "no_show",
+    "failed",
+  ].includes(status);
+}
+
+function canAssignSiteVisitStatus(
+  status: string,
+): boolean {
+  return ![
+    "completed",
+    "cancelled",
+    "no_show",
+    "failed",
+  ].includes(status);
 }
 
 export default function LeadOperationalOverview({
@@ -749,6 +826,298 @@ export default function LeadOperationalOverview({
           )}
         </section>
       ) : null}
+
+        {access.canViewSiteVisits ? (
+    <section className="space-y-6 rounded-2xl border border-slate-800 bg-slate-950/40 p-5 sm:p-6">
+      <header className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400">
+            Site visit workspace
+          </p>
+
+          <h3 className="mt-3 text-xl font-semibold text-white">
+            Customer visit execution
+          </h3>
+
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            Schedule, assign, check in, check out, complete and cancel
+            customer site visits from one operational workspace.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <ActionBadge
+            label="Create"
+            allowed={
+              access.canCreateSiteVisit
+            }
+          />
+
+          <ActionBadge
+            label="Assign"
+            allowed={
+              access.canAssignSiteVisit
+            }
+          />
+
+          <ActionBadge
+            label="Check in"
+            allowed={
+              access.canCheckInSiteVisit
+            }
+          />
+
+          <ActionBadge
+            label="Check out"
+            allowed={
+              access.canCheckInSiteVisit
+            }
+          />
+
+          <ActionBadge
+            label="Complete"
+            allowed={
+              access.canCompleteSiteVisit
+            }
+          />
+
+          <ActionBadge
+            label="Cancel"
+            allowed={
+              access.canCancelSiteVisit
+            }
+          />
+        </div>
+      </header>
+
+      {access.canCreateSiteVisit ? (
+        <CreateSiteVisitForm
+          key={`create-site-visit-${snapshot.updatedAt}`}
+          leadId={snapshot.leadId}
+          members={members}
+        />
+      ) : null}
+            {siteVisits.length > 0 ? (
+        <div className="space-y-5">
+          {siteVisits.map((visit) => {
+            const assignedVisitMember =
+              visit.assignedAgentId
+                ? members.find(
+                    (member) =>
+                      member.userId ===
+                      visit.assignedAgentId,
+                  ) ?? null
+                : null;
+
+            const coordinatorMember =
+              visit.coordinatorId
+                ? members.find(
+                    (member) =>
+                      member.userId ===
+                      visit.coordinatorId,
+                  ) ?? null
+                : null;
+
+            const terminalVisit =
+              isTerminalSiteVisitStatus(
+                visit.status,
+              );
+
+            const canAssignVisit =
+              access.canAssignSiteVisit &&
+              canAssignSiteVisitStatus(
+                visit.status,
+              );
+
+            const canCheckInVisit =
+              access.canCheckInSiteVisit &&
+              canCheckInSiteVisitStatus(
+                visit.status,
+              );
+
+            const canCheckOutVisit =
+              access.canCheckInSiteVisit &&
+              canCheckOutSiteVisitStatus(
+                visit.status,
+              );
+
+            const canCompleteVisit =
+              access.canCompleteSiteVisit &&
+              canCompleteSiteVisitStatus(
+                visit.status,
+              );
+
+            const canCancelVisit =
+              access.canCancelSiteVisit &&
+              canCancelSiteVisitStatus(
+                visit.status,
+              );
+
+            return (
+              <article
+                key={visit.id}
+                className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5"
+              >
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        value={visit.status}
+                      />
+
+                      <span className="inline-flex rounded-full border border-slate-800 bg-slate-950 px-3 py-1 text-xs font-semibold text-slate-400">
+                        {formatOperationalLabel(
+                          visit.priority,
+                        )}
+                      </span>
+
+                      {terminalVisit ? (
+                        <span className="inline-flex rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-xs font-semibold text-slate-500">
+                          Closed state
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <h4 className="mt-3 text-lg font-semibold text-white">
+                      {visit.title}
+                    </h4>
+
+                    {visit.description ? (
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                        {visit.description}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <p className="text-xs leading-5 text-slate-500">
+                    Updated{" "}
+                    {formatDateTime(
+                      visit.updatedAt,
+                    )}
+                  </p>
+                </div>
+
+                <dl className="mt-5 grid gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-sm sm:grid-cols-2 xl:grid-cols-5">
+                  <div>
+                    <dt className="text-xs uppercase tracking-wider text-slate-500">
+                      Type
+                    </dt>
+
+                    <dd className="mt-1 font-medium text-slate-200">
+                      {formatOperationalLabel(
+                        visit.visitType,
+                      )}
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt className="text-xs uppercase tracking-wider text-slate-500">
+                      Scheduled
+                    </dt>
+
+                    <dd className="mt-1 font-medium text-slate-200">
+                      {formatDateTime(
+                        visit.scheduledStartAt,
+                      )}
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt className="text-xs uppercase tracking-wider text-slate-500">
+                      Project
+                    </dt>
+
+                    <dd className="mt-1 font-medium text-slate-200">
+                      {visit.projectName}
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt className="text-xs uppercase tracking-wider text-slate-500">
+                      Agent
+                    </dt>
+
+                    <dd className="mt-1 font-medium text-slate-200">
+                      {assignedVisitMember
+                        ?.displayName ??
+                        visit.assignedAgentId ??
+                        "Unassigned"}
+                    </dd>
+                  </div>
+
+                  <div>
+                    <dt className="text-xs uppercase tracking-wider text-slate-500">
+                      Coordinator
+                    </dt>
+
+                    <dd className="mt-1 font-medium text-slate-200">
+                      {coordinatorMember
+                        ?.displayName ??
+                        visit.coordinatorId ??
+                        "Not assigned"}
+                    </dd>
+                  </div>
+                </dl>
+                            {canAssignVisit ||
+            canCheckInVisit ||
+            canCheckOutVisit ||
+            canCompleteVisit ||
+            canCancelVisit ? (
+              <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                {canAssignVisit ? (
+                  <AssignSiteVisitForm
+                    key={`assign-site-visit-${visit.id}-${visit.updatedAt}`}
+                    visit={visit}
+                    members={members}
+                  />
+                ) : null}
+
+                {canCheckInVisit ? (
+                  <CheckInSiteVisitForm
+                    key={`check-in-site-visit-${visit.id}-${visit.updatedAt}`}
+                    visit={visit}
+                  />
+                ) : null}
+
+                {canCheckOutVisit ? (
+                  <CheckOutSiteVisitForm
+                    key={`check-out-site-visit-${visit.id}-${visit.updatedAt}`}
+                    visit={visit}
+                  />
+                ) : null}
+
+                {canCompleteVisit ? (
+                  <CompleteSiteVisitForm
+                    key={`complete-site-visit-${visit.id}-${visit.updatedAt}`}
+                    visit={visit}
+                  />
+                ) : null}
+
+                {canCancelVisit ? (
+                  <CancelSiteVisitForm
+                    key={`cancel-site-visit-${visit.id}-${visit.updatedAt}`}
+                    visit={visit}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-8 text-center">
+          <p className="text-sm font-medium text-slate-300">
+            No site visit is recorded.
+          </p>
+
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Create the first visit to start the customer visit lifecycle.
+          </p>
+        </div>
+      )}
+    </section>
+  ) : null}
 
       {access.canViewAssignments &&
       (access.canManualAssign ||

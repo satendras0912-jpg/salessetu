@@ -371,6 +371,7 @@ export type AssignSiteVisitValues = {
 
 export type SiteVisitCheckInValues = {
   siteVisitId: string;
+  expectedUpdatedAt: string;
 
   party: SiteVisitParty;
   latitude: string;
@@ -381,11 +382,14 @@ export type SiteVisitCheckInValues = {
 
 export type SiteVisitCheckOutValues = {
   siteVisitId: string;
+  expectedUpdatedAt: string;
+
   party: SiteVisitParty;
 };
 
 export type CompleteSiteVisitValues = {
   siteVisitId: string;
+  expectedUpdatedAt: string;
 
   outcome: SiteVisitOutcome;
   outcomeSummary: string;
