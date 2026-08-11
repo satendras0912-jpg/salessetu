@@ -409,58 +409,68 @@ function mapDatabaseError(
   }
 
   if (
-    error.code === "23514" ||
-    error.code === "22P02" ||
-    normalizedMessage.includes(
-      "cannot be assigned",
-    ) ||
-    normalizedMessage.includes(
-      "cannot be checked in",
-    ) ||
-    normalizedMessage.includes(
-      "cannot be checked out",
-    ) ||
-    normalizedMessage.includes(
-      "cannot be completed",
-    ) ||
-    normalizedMessage.includes(
-      "cannot be cancelled",
-    ) ||
-    normalizedMessage.includes(
-      "already completed",
-    ) ||
-    normalizedMessage.includes(
-      "already cancelled",
-    ) ||
-    normalizedMessage.includes(
-      "must be checked in",
-    ) ||
-    normalizedMessage.includes(
-      "invalid site visit outcome",
-    ) ||
-    normalizedMessage.includes(
-      "invalid check-in method",
-    ) ||
-    normalizedMessage.includes(
-      "invalid latitude",
-    ) ||
-    normalizedMessage.includes(
-      "invalid longitude",
-    ) ||
-    normalizedMessage.includes(
-      "probability of booking",
-    ) ||
-    normalizedMessage.includes(
-      "invalid status",
-    )
-  ) {
-    return {
-      ok: false,
-      code: "invalid_state",
-      message:
-        "The site visit action is not valid for the visit's current state.",
-    };
-  }
+  normalizedMessage.includes(
+    "invalid site visit outcome",
+  )
+) {
+  return {
+    ok: false,
+    code: "validation",
+    message:
+      "Select a valid site visit outcome.",
+  };
+}
+
+if (
+  error.code === "23514" ||
+  error.code === "22P02" ||
+  normalizedMessage.includes(
+    "cannot be assigned",
+  ) ||
+  normalizedMessage.includes(
+    "cannot be checked in",
+  ) ||
+  normalizedMessage.includes(
+    "cannot be checked out",
+  ) ||
+  normalizedMessage.includes(
+    "cannot be completed",
+  ) ||
+  normalizedMessage.includes(
+    "cannot be cancelled",
+  ) ||
+  normalizedMessage.includes(
+    "already completed",
+  ) ||
+  normalizedMessage.includes(
+    "already cancelled",
+  ) ||
+  normalizedMessage.includes(
+    "must be checked in",
+  ) ||
+  normalizedMessage.includes(
+    "invalid check-in method",
+  ) ||
+  normalizedMessage.includes(
+    "invalid latitude",
+  ) ||
+  normalizedMessage.includes(
+    "invalid longitude",
+  ) ||
+  normalizedMessage.includes(
+    "probability of booking",
+  ) ||
+  normalizedMessage.includes(
+    "invalid status",
+  )
+) {
+  return {
+    ok: false,
+    code: "invalid_state",
+    message:
+      "The site visit action is not valid for the visit's current state.",
+  };
+}
 
   return {
     ok: false,

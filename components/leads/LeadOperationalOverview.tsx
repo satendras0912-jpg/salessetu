@@ -124,7 +124,6 @@ function canCheckOutSiteVisitStatus(
   return [
     "checked_in",
     "in_progress",
-    "completed",
   ].includes(status);
 }
 
