@@ -526,14 +526,20 @@ export type CancelCommercialApprovalValues = {
 };
 
 
+export type GenericDealStatusTarget =
+  | "open"
+  | "negotiation"
+  | "commercial_review"
+  | "approved"
+  | "booking_ready";
+
+
 export type ChangeDealStatusValues = {
   dealId: string;
 
   expectedUpdatedAt: string;
 
-  status: DealStatus;
-
-  reason?: string | null;
+  status: GenericDealStatusTarget;
 };
 
 

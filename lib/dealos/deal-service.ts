@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 
 import type {
+  CancelDealValues,
+  ChangeDealStatusValues,
   CreateDealValues,
   DealOSServiceResult,
+  MarkDealLostValues,
+  PutDealOnHoldValues,
+  UpdateDealValues,
 } from "@/types/dealos";
 
 const UUID_PATTERN =
@@ -814,4 +819,859 @@ export async function createDeal(
   }
 
   return result;
+}
+
+type UpdateDealPayload = {
+  assigned_to?: string | null;
+  booking_probability?: number | null;
+  next_action_at?: string | null;
+  hold_reason?: string | null;
+  notes?: string | null;
+};
+
+
+export async function updateDeal(
+  organizationId: string,
+  values: UpdateDealValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to update a deal.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  const payload: UpdateDealPayload = {};
+
+  if (values.assignedTo !== undefined) {
+    const rawAssignedTo =
+      normalizeDealOptionalText(
+        values.assignedTo,
+      );
+
+    const cleanAssignedTo =
+      rawAssignedTo
+        ? normalizeDealOptionalUuid(
+            rawAssignedTo,
+          )
+        : null;
+
+    if (
+      rawAssignedTo &&
+      !cleanAssignedTo
+    ) {
+      return createDealValidationFailure(
+        "The selected deal assignee is invalid.",
+      );
+    }
+
+    payload.assigned_to =
+      cleanAssignedTo;
+  }
+
+  if (
+    values.bookingProbability !==
+    undefined
+  ) {
+    const cleanBookingProbability =
+      values.bookingProbability;
+
+    if (
+      cleanBookingProbability !== null &&
+      (
+        !Number.isFinite(
+          cleanBookingProbability,
+        ) ||
+        cleanBookingProbability < 0 ||
+        cleanBookingProbability > 100
+      )
+    ) {
+      return createDealValidationFailure(
+        "Booking probability must be between 0 and 100.",
+      );
+    }
+
+    payload.booking_probability =
+      cleanBookingProbability;
+  }
+
+  if (
+    values.nextActionAt !== undefined
+  ) {
+    const rawNextActionAt =
+      normalizeDealOptionalText(
+        values.nextActionAt,
+      );
+
+    const cleanNextActionAt =
+      rawNextActionAt
+        ? normalizeDealTimestamp(
+            rawNextActionAt,
+          )
+        : null;
+
+    if (
+      rawNextActionAt &&
+      !cleanNextActionAt
+    ) {
+      return createDealValidationFailure(
+        "Enter a valid next-action date and time.",
+      );
+    }
+
+    payload.next_action_at =
+      cleanNextActionAt;
+  }
+
+  if (values.holdReason !== undefined) {
+    payload.hold_reason =
+      normalizeDealOptionalText(
+        values.holdReason,
+      );
+  }
+
+  if (values.notes !== undefined) {
+    payload.notes =
+      normalizeDealOptionalText(
+        values.notes,
+      );
+  }
+
+  if (
+    Object.keys(payload).length === 0
+  ) {
+    return createDealValidationFailure(
+      "No deal changes were provided.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deals")
+    .update(payload)
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .select(
+      "id, lead_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "update",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseDealMutationResult(
+        data,
+        cleanDealId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The deal may have been updated, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  /*
+   * Zero updated rows means either:
+   *
+   * 1. The deal no longer exists / is not accessible.
+   * 2. updated_at changed after the form was opened.
+   */
+  const {
+    data: currentDeal,
+    error: lookupError,
+  } = await supabase
+    .from("deals")
+    .select("id")
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "update",
+    );
+  }
+
+  if (!currentDeal) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The deal does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "conflict",
+    message:
+      "This deal was changed by another user or request. Reload the latest version before trying again.",
+  };
+}
+
+export async function changeDealStatus(
+  organizationId: string,
+  values: ChangeDealStatusValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to change deal status.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deals")
+    .update({
+      status: values.status,
+    })
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .select(
+      "id, lead_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "change_status",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseDealMutationResult(
+        data,
+        cleanDealId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The deal status may have changed, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  /*
+   * Zero updated rows means either:
+   *
+   * 1. Deal no longer exists / is outside active scope.
+   * 2. updated_at changed after the action was opened.
+   */
+  const {
+    data: currentDeal,
+    error: lookupError,
+  } = await supabase
+    .from("deals")
+    .select("id")
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "change_status",
+    );
+  }
+
+  if (!currentDeal) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The deal does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "conflict",
+    message:
+      "This deal was changed by another user or request. Reload the latest version before trying again.",
+  };
+}
+
+export async function markDealLost(
+  organizationId: string,
+  values: MarkDealLostValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to mark a deal lost.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  const cleanLossReason =
+    normalizeDealOptionalText(
+      values.lossReason,
+    );
+
+  if (!cleanLossReason) {
+    return createDealValidationFailure(
+      "Enter a reason for marking this deal lost.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deals")
+    .update({
+      status: "lost",
+      loss_reason: cleanLossReason,
+    })
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .select(
+      "id, lead_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "change_status",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseDealMutationResult(
+        data,
+        cleanDealId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The deal may have been marked lost, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  const {
+    data: currentDeal,
+    error: lookupError,
+  } = await supabase
+    .from("deals")
+    .select("id")
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "change_status",
+    );
+  }
+
+  if (!currentDeal) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The deal does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "conflict",
+    message:
+      "This deal was changed by another user or request. Reload the latest version before trying again.",
+  };
+}
+
+export async function putDealOnHold(
+  organizationId: string,
+  values: PutDealOnHoldValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to put a deal on hold.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  const cleanHoldReason =
+    normalizeDealOptionalText(
+      values.holdReason,
+    );
+
+  if (!cleanHoldReason) {
+    return createDealValidationFailure(
+      "Enter a reason for putting this deal on hold.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deals")
+    .update({
+      status: "on_hold",
+      hold_reason: cleanHoldReason,
+    })
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .select(
+      "id, lead_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "change_status",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseDealMutationResult(
+        data,
+        cleanDealId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The deal may have been put on hold, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  const {
+    data: currentDeal,
+    error: lookupError,
+  } = await supabase
+    .from("deals")
+    .select("id")
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "change_status",
+    );
+  }
+
+  if (!currentDeal) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The deal does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "conflict",
+    message:
+      "This deal was changed by another user or request. Reload the latest version before trying again.",
+  };
+}
+
+export async function cancelDeal(
+  organizationId: string,
+  values: CancelDealValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to cancel a deal.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  const cleanCancellationReason =
+    normalizeDealOptionalText(
+      values.cancellationReason,
+    );
+
+  if (!cleanCancellationReason) {
+    return createDealValidationFailure(
+      "Enter a reason for cancelling this deal.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deals")
+    .update({
+      status: "cancelled",
+      cancellation_reason:
+        cleanCancellationReason,
+    })
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .select(
+      "id, lead_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "change_status",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseDealMutationResult(
+        data,
+        cleanDealId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The deal may have been cancelled, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  const {
+    data: currentDeal,
+    error: lookupError,
+  } = await supabase
+    .from("deals")
+    .select("id")
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "change_status",
+    );
+  }
+
+  if (!currentDeal) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The deal does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "conflict",
+    message:
+      "This deal was changed by another user or request. Reload the latest version before trying again.",
+  };
 }
