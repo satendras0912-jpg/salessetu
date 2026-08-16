@@ -579,6 +579,13 @@ export type LinkDealBookingValues = {
 };
 
 
+export type MarkDealWonValues = {
+  dealId: string;
+
+  expectedUpdatedAt: string;
+};
+
+
 // ============================================================
 // DATA ACCESS / PERMISSIONS
 // ============================================================

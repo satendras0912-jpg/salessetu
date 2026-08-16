@@ -5,7 +5,9 @@ import type {
   ChangeDealStatusValues,
   CreateDealValues,
   DealOSServiceResult,
+  LinkDealBookingValues,
   MarkDealLostValues,
+  MarkDealWonValues,
   PutDealOnHoldValues,
   UpdateDealValues,
 } from "@/types/dealos";
@@ -1665,6 +1667,383 @@ export async function cancelDeal(
       code: "not_found",
       message:
         "The deal does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "conflict",
+    message:
+      "This deal was changed by another user or request. Reload the latest version before trying again.",
+  };
+}
+
+export async function linkDealBooking(
+  organizationId: string,
+  values: LinkDealBookingValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to link a booking.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanBookingId =
+    normalizeDealRequiredUuid(
+      values.bookingId,
+    );
+
+  if (!cleanBookingId) {
+    return createDealValidationFailure(
+      "A valid booking ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  /*
+   * Booking handoff is intentionally restricted to the
+   * booking_ready state at the application layer.
+   *
+   * PostgreSQL remains authoritative for organization,
+   * lead, site-visit, inventory and permission integrity.
+   */
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deals")
+    .update({
+      booking_id:
+        cleanBookingId,
+    })
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .eq(
+      "status",
+      "booking_ready",
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .select(
+      "id, lead_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "link_booking",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseDealMutationResult(
+        data,
+        cleanDealId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The booking may have been linked, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  /*
+   * Zero updated rows can mean:
+   *
+   * 1. Deal no longer exists / is outside active scope.
+   * 2. Deal is not currently booking_ready.
+   * 3. updated_at changed after the handoff action opened.
+   */
+  const {
+    data: currentDeal,
+    error: lookupError,
+  } = await supabase
+    .from("deals")
+    .select(
+      "id, status",
+    )
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "link_booking",
+    );
+  }
+
+  if (!currentDeal) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The deal does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  const scopedDeal =
+    currentDeal as {
+      id: string;
+      status: string;
+    };
+
+  if (
+    scopedDeal.status !==
+    "booking_ready"
+  ) {
+    return {
+      ok: false,
+      code: "invalid_state",
+      message:
+        "A booking can only be linked when the deal is booking ready.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "conflict",
+    message:
+      "This deal was changed by another user or request. Reload the latest version before trying again.",
+  };
+}
+
+export async function markDealWon(
+  organizationId: string,
+  values: MarkDealWonValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to mark a deal won.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  /*
+   * Winning a deal is deliberately restricted to:
+   *
+   * - booking_ready status
+   * - an already-linked booking
+   * - the exact updated_at version opened by the user
+   *
+   * PostgreSQL remains authoritative for booking integrity,
+   * commercial requirements and permissions.
+   */
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deals")
+    .update({
+      status: "won",
+    })
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .eq(
+      "status",
+      "booking_ready",
+    )
+    .not(
+      "booking_id",
+      "is",
+      null,
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .select(
+      "id, lead_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "change_status",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseDealMutationResult(
+        data,
+        cleanDealId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The deal may have been marked won, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  const {
+    data: currentDeal,
+    error: lookupError,
+  } = await supabase
+    .from("deals")
+    .select(
+      "id, status, booking_id",
+    )
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "change_status",
+    );
+  }
+
+  if (!currentDeal) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The deal does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  const scopedDeal =
+    currentDeal as {
+      id: string;
+      status: string;
+      booking_id: string | null;
+    };
+
+  if (
+    scopedDeal.status !==
+    "booking_ready"
+  ) {
+    return {
+      ok: false,
+      code: "invalid_state",
+      message:
+        "Only a booking-ready deal can be marked won.",
+    };
+  }
+
+  if (!scopedDeal.booking_id) {
+    return {
+      ok: false,
+      code: "invalid_state",
+      message:
+        "Link the Booking Engine record before marking this deal won.",
     };
   }
 
