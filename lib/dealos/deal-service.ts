@@ -8,6 +8,8 @@ import type {
   LinkDealBookingValues,
   MarkDealLostValues,
   MarkDealWonValues,
+  CreateDealOfferValues,
+  UpdateDealOfferStatusValues,
   PutDealOnHoldValues,
   UpdateDealValues,
 } from "@/types/dealos";
@@ -447,6 +449,12 @@ type DealMutationRow = {
   updated_at?: unknown;
 };
 
+type DealOfferMutationRow = {
+  id?: unknown;
+  deal_id?: unknown;
+  updated_at?: unknown;
+};
+
 type ServerSupabaseClient =
   Awaited<ReturnType<typeof createClient>>;
 
@@ -595,6 +603,79 @@ function parseDealMutationResult(
   return {
     ok: true,
     dealId,
+    updatedAt,
+  };
+}
+
+function getDealOfferMutationPayload(
+  data: unknown,
+): DealOfferMutationRow | null {
+  const candidate =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (
+    typeof candidate !== "object" ||
+    candidate === null
+  ) {
+    return null;
+  }
+
+  return candidate as
+    DealOfferMutationRow;
+}
+
+
+function parseDealOfferMutationResult(
+  data: unknown,
+  expectedDealId?: string,
+  expectedOfferId?: string,
+): DealOSServiceResult | null {
+  const payload =
+    getDealOfferMutationPayload(data);
+
+  if (!payload) {
+    return null;
+  }
+
+  if (
+    typeof payload.id !== "string" ||
+    typeof payload.deal_id !== "string" ||
+    typeof payload.updated_at !== "string"
+  ) {
+    return null;
+  }
+
+  const offerId =
+    payload.id.trim();
+
+  const dealId =
+    payload.deal_id.trim();
+
+  const updatedAt =
+    payload.updated_at.trim();
+
+  if (
+    !offerId ||
+    !dealId ||
+    !updatedAt ||
+    (
+      expectedDealId &&
+      dealId !== expectedDealId
+    ) ||
+    (
+      expectedOfferId &&
+      offerId !== expectedOfferId
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    ok: true,
+    dealId,
+    offerId,
     updatedAt,
   };
 }
@@ -2052,5 +2133,418 @@ export async function markDealWon(
     code: "conflict",
     message:
       "This deal was changed by another user or request. Reload the latest version before trying again.",
+  };
+}
+
+export async function createDealOffer(
+  organizationId: string,
+  values: CreateDealOfferValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to create an offer.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  if (
+    values.offeredByParty !== "customer" &&
+    values.offeredByParty !== "organization"
+  ) {
+    return createDealValidationFailure(
+      "Select a valid offer party.",
+    );
+  }
+
+  if (
+    !Number.isFinite(
+      values.offerAmount,
+    ) ||
+    values.offerAmount <= 0
+  ) {
+    return createDealValidationFailure(
+      "Enter a valid offer amount greater than zero.",
+    );
+  }
+
+  const cleanCurrencyCode =
+    normalizeDealCurrencyCode(
+      values.currencyCode,
+    );
+
+  if (!cleanCurrencyCode) {
+    return createDealValidationFailure(
+      "Enter a valid three-letter currency code.",
+    );
+  }
+
+  const cleanNotes =
+    normalizeDealOptionalText(
+      values.notes,
+    );
+
+  const rawValidUntil =
+    normalizeDealOptionalText(
+      values.validUntil,
+    );
+
+  const cleanValidUntil =
+    rawValidUntil
+      ? normalizeDealTimestamp(
+          rawValidUntil,
+        )
+      : null;
+
+  if (
+    rawValidUntil &&
+    !cleanValidUntil
+  ) {
+    return createDealValidationFailure(
+      "Enter a valid offer expiry date and time.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  /*
+   * createDealOffer() represents an actual commercial proposal,
+   * therefore the offer is created directly as proposed.
+   *
+   * PostgreSQL will:
+   * - counter any previous proposed offer,
+   * - move an eligible deal into negotiation,
+   * - enforce deals.manage_offers permission,
+   * - preserve commercial-term immutability.
+   */
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deal_offers")
+    .insert({
+      organization_id:
+        cleanOrganizationId,
+
+      deal_id:
+        cleanDealId,
+
+      offered_by_party:
+        values.offeredByParty,
+
+      status:
+        "proposed",
+
+      offer_amount:
+        values.offerAmount,
+
+      currency_code:
+        cleanCurrencyCode,
+
+      offer_terms:
+        values.offerTerms ?? {},
+
+      notes:
+        cleanNotes,
+
+      valid_until:
+        cleanValidUntil,
+    })
+    .select(
+      "id, deal_id, updated_at",
+    )
+    .single();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "create_offer",
+    );
+  }
+
+  const result =
+    parseDealOfferMutationResult(
+      data,
+      cleanDealId,
+    );
+
+  if (!result) {
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The offer may have been created, but its response could not be verified. Reload the latest deal before trying again.",
+    };
+  }
+
+  return result;
+}
+
+export async function updateDealOfferStatus(
+  organizationId: string,
+  values: UpdateDealOfferStatusValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to update an offer.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanOfferId =
+    normalizeDealRequiredUuid(
+      values.offerId,
+    );
+
+  if (!cleanOfferId) {
+    return createDealValidationFailure(
+      "A valid offer ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original offer update timestamp is invalid.",
+    );
+  }
+
+  /*
+   * DealOS offer lifecycle:
+   *
+   * draft
+   *   -> proposed
+   *   -> withdrawn
+   *
+   * proposed
+   *   -> countered
+   *   -> accepted
+   *   -> rejected
+   *   -> withdrawn
+   *   -> expired
+   *
+   * All response states are terminal.
+   */
+  let allowedSourceStatuses:
+    string[];
+
+  switch (values.status) {
+    case "proposed":
+      allowedSourceStatuses = [
+        "draft",
+      ];
+      break;
+
+    case "countered":
+    case "accepted":
+    case "rejected":
+    case "expired":
+      allowedSourceStatuses = [
+        "proposed",
+      ];
+      break;
+
+    case "withdrawn":
+      allowedSourceStatuses = [
+        "draft",
+        "proposed",
+      ];
+      break;
+
+    case "draft":
+      return createDealValidationFailure(
+        "An existing offer cannot be moved back to draft.",
+      );
+
+    default:
+      return createDealValidationFailure(
+        "Select a valid offer status action.",
+      );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deal_offers")
+    .update({
+      status: values.status,
+    })
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "deal_id",
+      cleanDealId,
+    )
+    .eq(
+      "id",
+      cleanOfferId,
+    )
+    .in(
+      "status",
+      allowedSourceStatuses,
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .select(
+      "id, deal_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "update_offer",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseDealOfferMutationResult(
+        data,
+        cleanDealId,
+        cleanOfferId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The offer may have been updated, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  /*
+   * Zero updated rows can mean:
+   *
+   * 1. Offer does not exist in this organization/deal.
+   * 2. Offer changed after the action was opened.
+   * 3. Current status does not allow the requested transition.
+   */
+  const {
+    data: currentOffer,
+    error: lookupError,
+  } = await supabase
+    .from("deal_offers")
+    .select(
+      "id, deal_id, status, updated_at",
+    )
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "deal_id",
+      cleanDealId,
+    )
+    .eq(
+      "id",
+      cleanOfferId,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "update_offer",
+    );
+  }
+
+  if (!currentOffer) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The offer does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  const scopedOffer =
+    currentOffer as {
+      id: string;
+      deal_id: string;
+      status: string;
+      updated_at: string;
+    };
+
+  /*
+   * Concurrency takes precedence over state diagnosis.
+   * The caller must act on the exact offer version it opened.
+   */
+  if (
+    scopedOffer.updated_at !==
+    cleanExpectedUpdatedAt
+  ) {
+    return {
+      ok: false,
+      code: "conflict",
+      message:
+        "This offer was changed by another user or request. Reload the latest version before trying again.",
+    };
+  }
+
+  if (
+    !allowedSourceStatuses.includes(
+      scopedOffer.status,
+    )
+  ) {
+    return {
+      ok: false,
+      code: "invalid_state",
+      message:
+        "The requested offer status change is not valid for the offer's current state.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "database_error",
+    message:
+      "The offer status could not be updated. Reload the latest deal before trying again.",
   };
 }

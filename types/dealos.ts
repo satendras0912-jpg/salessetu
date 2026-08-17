@@ -493,6 +493,8 @@ export type UpdateDealOfferStatusValues = {
   dealId: string;
   offerId: string;
 
+  expectedUpdatedAt: string;
+
   status: DealOfferStatus;
 };
 
