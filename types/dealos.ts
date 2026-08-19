@@ -514,6 +514,8 @@ export type DecideCommercialApprovalValues = {
   dealId: string;
   approvalId: string;
 
+  expectedUpdatedAt: string;
+
   decision:
     | "approved"
     | "rejected";
@@ -525,6 +527,8 @@ export type DecideCommercialApprovalValues = {
 export type CancelCommercialApprovalValues = {
   dealId: string;
   approvalId: string;
+
+  expectedUpdatedAt: string;
 };
 
 

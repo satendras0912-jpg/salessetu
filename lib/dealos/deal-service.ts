@@ -1,16 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
 
 import type {
+  CancelCommercialApprovalValues,
   CancelDealValues,
   ChangeDealStatusValues,
+  CreateDealOfferValues,
   CreateDealValues,
   DealOSServiceResult,
+  DecideCommercialApprovalValues,
   LinkDealBookingValues,
   MarkDealLostValues,
   MarkDealWonValues,
-  CreateDealOfferValues,
-  UpdateDealOfferStatusValues,
   PutDealOnHoldValues,
+  RequestCommercialApprovalValues,
+  UpdateDealOfferStatusValues,
   UpdateDealValues,
 } from "@/types/dealos";
 
@@ -371,6 +374,20 @@ export function mapDealOSDatabaseError(
   }
 
   if (
+  error.code === "23505" &&
+  normalizedMessage.includes(
+    "deal_commercial_approvals_pending_idx",
+  )
+) {
+  return {
+    ok: false,
+    code: "invalid_state",
+    message:
+      "A pending commercial approval already exists for this deal.",
+  };
+}
+
+  if (
     error.code === "23514" ||
     error.code === "22P02" ||
     normalizedMessage.includes(
@@ -450,6 +467,12 @@ type DealMutationRow = {
 };
 
 type DealOfferMutationRow = {
+  id?: unknown;
+  deal_id?: unknown;
+  updated_at?: unknown;
+};
+
+type CommercialApprovalMutationRow = {
   id?: unknown;
   deal_id?: unknown;
   updated_at?: unknown;
@@ -676,6 +699,81 @@ function parseDealOfferMutationResult(
     ok: true,
     dealId,
     offerId,
+    updatedAt,
+  };
+}
+
+function getCommercialApprovalMutationPayload(
+  data: unknown,
+): CommercialApprovalMutationRow | null {
+  const candidate =
+    Array.isArray(data)
+      ? data[0]
+      : data;
+
+  if (
+    typeof candidate !== "object" ||
+    candidate === null
+  ) {
+    return null;
+  }
+
+  return candidate as
+    CommercialApprovalMutationRow;
+}
+
+
+function parseCommercialApprovalMutationResult(
+  data: unknown,
+  expectedDealId?: string,
+  expectedApprovalId?: string,
+): DealOSServiceResult | null {
+  const payload =
+    getCommercialApprovalMutationPayload(
+      data,
+    );
+
+  if (!payload) {
+    return null;
+  }
+
+  if (
+    typeof payload.id !== "string" ||
+    typeof payload.deal_id !== "string" ||
+    typeof payload.updated_at !== "string"
+  ) {
+    return null;
+  }
+
+  const approvalId =
+    payload.id.trim();
+
+  const dealId =
+    payload.deal_id.trim();
+
+  const updatedAt =
+    payload.updated_at.trim();
+
+  if (
+    !approvalId ||
+    !dealId ||
+    !updatedAt ||
+    (
+      expectedDealId &&
+      dealId !== expectedDealId
+    ) ||
+    (
+      expectedApprovalId &&
+      approvalId !== expectedApprovalId
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    ok: true,
+    dealId,
+    approvalId,
     updatedAt,
   };
 }
@@ -2546,5 +2644,583 @@ export async function updateDealOfferStatus(
     code: "database_error",
     message:
       "The offer status could not be updated. Reload the latest deal before trying again.",
+  };
+}
+
+export async function requestCommercialApproval(
+  organizationId: string,
+  values: RequestCommercialApprovalValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to request commercial approval.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const rawOfferId =
+    normalizeDealOptionalText(
+      values.offerId,
+    );
+
+  const cleanOfferId =
+    rawOfferId
+      ? normalizeDealOptionalUuid(
+          rawOfferId,
+        )
+      : null;
+
+  if (
+    rawOfferId &&
+    !cleanOfferId
+  ) {
+    return createDealValidationFailure(
+      "A valid offer ID is required when an offer is linked to the approval request.",
+    );
+  }
+
+  if (
+    !Number.isFinite(
+      values.requestedAmount,
+    ) ||
+    values.requestedAmount <= 0
+  ) {
+    return createDealValidationFailure(
+      "Enter a valid requested amount greater than zero.",
+    );
+  }
+
+  const cleanRequestReason =
+    normalizeDealOptionalText(
+      values.requestReason,
+    );
+
+  if (!cleanRequestReason) {
+    return createDealValidationFailure(
+      "Enter a reason for the commercial approval request.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  /*
+   * PostgreSQL remains authoritative for:
+   *
+   * - status = pending
+   * - minimum negotiable price snapshot
+   * - requested_by
+   * - requested_at
+   * - created_at / updated_at
+   * - moving the deal into commercial_review
+   */
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "deal_commercial_approvals",
+    )
+    .insert({
+      organization_id:
+        cleanOrganizationId,
+
+      deal_id:
+        cleanDealId,
+
+      offer_id:
+        cleanOfferId,
+
+      status:
+        "pending",
+
+      requested_amount:
+        values.requestedAmount,
+
+      request_reason:
+        cleanRequestReason,
+    })
+    .select(
+      "id, deal_id, updated_at",
+    )
+    .single();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "request_approval",
+    );
+  }
+
+  const result =
+    parseCommercialApprovalMutationResult(
+      data,
+      cleanDealId,
+    );
+
+  if (!result) {
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The commercial approval may have been requested, but its response could not be verified. Reload the latest deal before trying again.",
+    };
+  }
+
+  return result;
+}
+
+export async function decideCommercialApproval(
+  organizationId: string,
+  values: DecideCommercialApprovalValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to decide commercial approval.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanApprovalId =
+    normalizeDealRequiredUuid(
+      values.approvalId,
+    );
+
+  if (!cleanApprovalId) {
+    return createDealValidationFailure(
+      "A valid commercial approval ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original commercial approval update timestamp is invalid.",
+    );
+  }
+
+  if (
+    values.decision !== "approved" &&
+    values.decision !== "rejected"
+  ) {
+    return createDealValidationFailure(
+      "Select a valid commercial approval decision.",
+    );
+  }
+
+  const cleanDecisionNotes =
+    normalizeDealOptionalText(
+      values.decisionNotes,
+    );
+
+  const supabase =
+    await createDealOSClient();
+
+  /*
+   * PostgreSQL remains authoritative for:
+   *
+   * - pending -> approved / rejected transition validation
+   * - decided_by
+   * - decided_at
+   * - updated_at
+   * - agreed price synchronization on approval
+   * - deal lifecycle transition
+   */
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "deal_commercial_approvals",
+    )
+    .update({
+      status:
+        values.decision,
+
+      decision_notes:
+        cleanDecisionNotes,
+    })
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "deal_id",
+      cleanDealId,
+    )
+    .eq(
+      "id",
+      cleanApprovalId,
+    )
+    .eq(
+      "status",
+      "pending",
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .select(
+      "id, deal_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "decide_approval",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseCommercialApprovalMutationResult(
+        data,
+        cleanDealId,
+        cleanApprovalId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The commercial approval may have been decided, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  /*
+   * Zero updated rows can mean:
+   *
+   * 1. Approval no longer exists.
+   * 2. Approval changed after the action was opened.
+   * 3. Approval is no longer pending.
+   */
+  const {
+    data: currentApproval,
+    error: lookupError,
+  } = await supabase
+    .from(
+      "deal_commercial_approvals",
+    )
+    .select(
+      "id, deal_id, status, updated_at",
+    )
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "deal_id",
+      cleanDealId,
+    )
+    .eq(
+      "id",
+      cleanApprovalId,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "decide_approval",
+    );
+  }
+
+  if (!currentApproval) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The commercial approval does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  const scopedApproval =
+    currentApproval as {
+      id: string;
+      deal_id: string;
+      status: string;
+      updated_at: string;
+    };
+
+  if (
+    scopedApproval.updated_at !==
+    cleanExpectedUpdatedAt
+  ) {
+    return {
+      ok: false,
+      code: "conflict",
+      message:
+        "This commercial approval was changed by another user or request. Reload the latest version before trying again.",
+    };
+  }
+
+  if (
+    scopedApproval.status !==
+    "pending"
+  ) {
+    return {
+      ok: false,
+      code: "invalid_state",
+      message:
+        "Only a pending commercial approval can be approved or rejected.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "database_error",
+    message:
+      "The commercial approval decision could not be saved. Reload the latest deal before trying again.",
+  };
+}
+
+export async function cancelCommercialApproval(
+  organizationId: string,
+  values: CancelCommercialApprovalValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return createDealValidationFailure(
+      "An active organization context is required to cancel commercial approval.",
+    );
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  if (!cleanDealId) {
+    return createDealValidationFailure(
+      "A valid deal ID is required.",
+    );
+  }
+
+  const cleanApprovalId =
+    normalizeDealRequiredUuid(
+      values.approvalId,
+    );
+
+  if (!cleanApprovalId) {
+    return createDealValidationFailure(
+      "A valid commercial approval ID is required.",
+    );
+  }
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original commercial approval update timestamp is invalid.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  /*
+   * PostgreSQL remains authoritative for:
+   *
+   * - pending -> cancelled transition validation
+   * - decided_by
+   * - decided_at
+   * - updated_at
+   * - returning a commercial_review deal to negotiation
+   */
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "deal_commercial_approvals",
+    )
+    .update({
+      status: "cancelled",
+    })
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "deal_id",
+      cleanDealId,
+    )
+    .eq(
+      "id",
+      cleanApprovalId,
+    )
+    .eq(
+      "status",
+      "pending",
+    )
+    .eq(
+      "updated_at",
+      cleanExpectedUpdatedAt,
+    )
+    .select(
+      "id, deal_id, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "cancel_approval",
+    );
+  }
+
+  if (data) {
+    const result =
+      parseCommercialApprovalMutationResult(
+        data,
+        cleanDealId,
+        cleanApprovalId,
+      );
+
+    if (!result) {
+      return {
+        ok: false,
+        code: "database_error",
+        message:
+          "The commercial approval may have been cancelled, but its response could not be verified. Reload the latest deal before trying again.",
+      };
+    }
+
+    return result;
+  }
+
+  /*
+   * Zero updated rows can mean:
+   *
+   * 1. Approval no longer exists.
+   * 2. Approval changed after the action was opened.
+   * 3. Approval is no longer pending.
+   */
+  const {
+    data: currentApproval,
+    error: lookupError,
+  } = await supabase
+    .from(
+      "deal_commercial_approvals",
+    )
+    .select(
+      "id, deal_id, status, updated_at",
+    )
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "deal_id",
+      cleanDealId,
+    )
+    .eq(
+      "id",
+      cleanApprovalId,
+    )
+    .maybeSingle();
+
+  if (lookupError) {
+    return mapDealOSDatabaseError(
+      lookupError,
+      "cancel_approval",
+    );
+  }
+
+  if (!currentApproval) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The commercial approval does not exist, is no longer available, or is outside the active organization.",
+    };
+  }
+
+  const scopedApproval =
+    currentApproval as {
+      id: string;
+      deal_id: string;
+      status: string;
+      updated_at: string;
+    };
+
+  /*
+   * Concurrency diagnosis takes precedence over lifecycle-state diagnosis.
+   */
+  if (
+    scopedApproval.updated_at !==
+    cleanExpectedUpdatedAt
+  ) {
+    return {
+      ok: false,
+      code: "conflict",
+      message:
+        "This commercial approval was changed by another user or request. Reload the latest version before trying again.",
+    };
+  }
+
+  if (
+    scopedApproval.status !==
+    "pending"
+  ) {
+    return {
+      ok: false,
+      code: "invalid_state",
+      message:
+        "Only a pending commercial approval can be cancelled.",
+    };
+  }
+
+  return {
+    ok: false,
+    code: "database_error",
+    message:
+      "The commercial approval could not be cancelled. Reload the latest deal before trying again.",
   };
 }
