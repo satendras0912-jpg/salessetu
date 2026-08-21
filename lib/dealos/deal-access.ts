@@ -8,6 +8,10 @@ import {
   DEALOS_PERMISSIONS,
 } from "@/lib/dealos/deal-contract";
 
+import {
+  getCurrentPermissionContext,
+} from "@/lib/auth/permissions";
+
 import type {
   DealOSDataAccess,
 } from "@/types/dealos";
@@ -112,5 +116,31 @@ export function buildDealOSDataAccess({
         isOwner,
         DEALOS_PERMISSIONS.deleteDeal,
       ),
+  };
+}
+
+export async function getCurrentDealOSAccessContext(): Promise<{
+  organizationId: string;
+  access: DealOSDataAccess;
+} | null> {
+  const permissionContext =
+    await getCurrentPermissionContext();
+
+  if (!permissionContext) {
+    return null;
+  }
+
+  return {
+    organizationId:
+      permissionContext.organizationId,
+
+    access:
+      buildDealOSDataAccess({
+        permissionCodes:
+          permissionContext.codes,
+
+        isOwner:
+          permissionContext.isOwner,
+      }),
   };
 }
