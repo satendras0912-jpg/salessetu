@@ -655,3 +655,13 @@ export type DealOSServiceFailure = {
 export type DealOSServiceResult =
   | DealOSServiceSuccess
   | DealOSServiceFailure;
+
+  export type DealOSReadSuccess<T> = {
+  ok: true;
+  data: T;
+};
+
+
+export type DealOSReadResult<T> =
+  | DealOSReadSuccess<T>
+  | DealOSServiceFailure;

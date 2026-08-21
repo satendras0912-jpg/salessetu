@@ -6,7 +6,10 @@ import type {
   ChangeDealStatusValues,
   CreateDealOfferValues,
   CreateDealValues,
+  DealOSReadResult,
   DealOSServiceResult,
+  DealRow,
+  DealSummary,
   DecideCommercialApprovalValues,
   LinkDealBookingValues,
   MarkDealLostValues,
@@ -15,6 +18,12 @@ import type {
   RequestCommercialApprovalValues,
   UpdateDealOfferStatusValues,
   UpdateDealValues,
+  DealCommercialApprovalRow,
+  DealCommercialApprovalSummary,
+  DealOfferRow,
+  DealOfferSummary,
+  DealStatusHistoryRow,
+  DealStatusHistorySummary,
 } from "@/types/dealos";
 
 const UUID_PATTERN =
@@ -39,7 +48,8 @@ export type DealOSOperation =
   | "request_approval"
   | "decide_approval"
   | "cancel_approval"
-  | "link_booking";
+  | "link_booking"
+  | "read";
 
 export function normalizeDealOptionalText(
   value: string | null | undefined,
@@ -236,6 +246,9 @@ function getDefaultOperationMessage(
 
     case "link_booking":
       return "The booking handoff could not be completed.";
+
+          case "read":
+      return "The deal data could not be loaded.";
   }
 }
 
@@ -261,6 +274,9 @@ function getTimeoutMessage(
 
     case "link_booking":
       return "The request timed out. Reload the deal and booking state before trying again.";
+
+          case "read":
+      return "The request timed out while loading the deal. Please try again.";
   }
 }
 
@@ -775,6 +791,565 @@ function parseCommercialApprovalMutationResult(
     dealId,
     approvalId,
     updatedAt,
+  };
+}
+
+function mapDealSummary(
+  row: DealRow,
+): DealSummary {
+  return {
+    id: row.id,
+
+    organizationId:
+      row.organization_id,
+
+    leadId:
+      row.lead_id,
+
+    siteVisitId:
+      row.site_visit_id,
+
+    inventoryUnitId:
+      row.inventory_unit_id,
+
+    bookingId:
+      row.booking_id,
+
+    status:
+      row.status,
+
+    assignedTo:
+      row.assigned_to,
+
+    currencyCode:
+      row.currency_code,
+
+    listedPriceSnapshot:
+      row.listed_price_snapshot,
+
+    quotedPriceSnapshot:
+      row.quoted_price_snapshot,
+
+    minimumNegotiablePriceSnapshot:
+      row.minimum_negotiable_price_snapshot,
+
+    agreedPrice:
+      row.agreed_price,
+
+    bookingProbability:
+      row.booking_probability,
+
+    nextActionAt:
+      row.next_action_at,
+
+    holdReason:
+      row.hold_reason,
+
+    lossReason:
+      row.loss_reason,
+
+    cancellationReason:
+      row.cancellation_reason,
+
+    notes:
+      row.notes,
+
+    wonAt:
+      row.won_at,
+
+    lostAt:
+      row.lost_at,
+
+    closedAt:
+      row.closed_at,
+
+    createdAt:
+      row.created_at,
+
+    updatedAt:
+      row.updated_at,
+  };
+}
+
+function mapDealOfferSummary(
+  row: DealOfferRow,
+): DealOfferSummary {
+  return {
+    id: row.id,
+
+    dealId:
+      row.deal_id,
+
+    offeredByParty:
+      row.offered_by_party,
+
+    status:
+      row.status,
+
+    offerAmount:
+      row.offer_amount,
+
+    currencyCode:
+      row.currency_code,
+
+    offerTerms:
+      row.offer_terms,
+
+    notes:
+      row.notes,
+
+    validUntil:
+      row.valid_until,
+
+    respondedAt:
+      row.responded_at,
+
+    createdAt:
+      row.created_at,
+
+    updatedAt:
+      row.updated_at,
+  };
+}
+
+function mapDealCommercialApprovalSummary(
+  row: DealCommercialApprovalRow,
+): DealCommercialApprovalSummary {
+  return {
+    id: row.id,
+
+    dealId:
+      row.deal_id,
+
+    offerId:
+      row.offer_id,
+
+    status:
+      row.status,
+
+    requestedAmount:
+      row.requested_amount,
+
+    minimumNegotiablePriceSnapshot:
+      row.minimum_negotiable_price_snapshot,
+
+    requestReason:
+      row.request_reason,
+
+    decisionNotes:
+      row.decision_notes,
+
+    requestedBy:
+      row.requested_by,
+
+    decidedBy:
+      row.decided_by,
+
+    requestedAt:
+      row.requested_at,
+
+    decidedAt:
+      row.decided_at,
+
+    createdAt:
+      row.created_at,
+
+    updatedAt:
+      row.updated_at,
+  };
+}
+
+function mapDealStatusHistorySummary(
+  row: DealStatusHistoryRow,
+): DealStatusHistorySummary {
+  return {
+    id: row.id,
+
+    dealId:
+      row.deal_id,
+
+    previousStatus:
+      row.previous_status,
+
+    newStatus:
+      row.new_status,
+
+    changeReason:
+      row.change_reason,
+
+    changedBy:
+      row.changed_by,
+
+    metadata:
+      row.metadata,
+
+    changedAt:
+      row.changed_at,
+  };
+}
+
+export async function getDealById(
+  organizationId: string,
+  dealId: string,
+): Promise<DealOSReadResult<DealSummary>> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid organization is required.",
+    };
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      dealId,
+    );
+
+  if (!cleanDealId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid deal is required.",
+    };
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deals")
+    .select("*")
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "id",
+      cleanDealId,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .maybeSingle();
+
+  if (error) {
+    const mappedError =
+      mapDealOSDatabaseError(
+        error,
+        "read",
+      );
+
+    if (!mappedError.ok) {
+      return mappedError;
+    }
+
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The deal data could not be loaded.",
+    };
+  }
+
+  if (!data) {
+    return {
+      ok: false,
+      code: "not_found",
+      message:
+        "The deal could not be found.",
+    };
+  }
+
+  return {
+    ok: true,
+    data:
+      mapDealSummary(
+        data as DealRow,
+      ),
+  };
+}
+
+export async function getDealOffers(
+  organizationId: string,
+  dealId: string,
+): Promise<
+  DealOSReadResult<
+    DealOfferSummary[]
+  >
+> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid organization is required.",
+    };
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      dealId,
+    );
+
+  if (!cleanDealId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid deal is required.",
+    };
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("deal_offers")
+    .select("*")
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "deal_id",
+      cleanDealId,
+    )
+    .order(
+      "created_at",
+      {
+        ascending: false,
+      },
+    );
+
+  if (error) {
+    const mappedError =
+      mapDealOSDatabaseError(
+        error,
+        "read",
+      );
+
+    if (!mappedError.ok) {
+      return mappedError;
+    }
+
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The deal offers could not be loaded.",
+    };
+  }
+
+  return {
+    ok: true,
+    data:
+      (data as DealOfferRow[])
+        .map(
+          mapDealOfferSummary,
+        ),
+  };
+}
+
+export async function getDealCommercialApprovals(
+  organizationId: string,
+  dealId: string,
+): Promise<
+  DealOSReadResult<
+    DealCommercialApprovalSummary[]
+  >
+> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid organization is required.",
+    };
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      dealId,
+    );
+
+  if (!cleanDealId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid deal is required.",
+    };
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "deal_commercial_approvals",
+    )
+    .select("*")
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "deal_id",
+      cleanDealId,
+    )
+    .order(
+      "created_at",
+      {
+        ascending: false,
+      },
+    );
+
+  if (error) {
+    const mappedError =
+      mapDealOSDatabaseError(
+        error,
+        "read",
+      );
+
+    if (!mappedError.ok) {
+      return mappedError;
+    }
+
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The commercial approvals could not be loaded.",
+    };
+  }
+
+  return {
+    ok: true,
+    data:
+      (
+        data as DealCommercialApprovalRow[]
+      ).map(
+        mapDealCommercialApprovalSummary,
+      ),
+  };
+}
+
+export async function getDealStatusHistory(
+  organizationId: string,
+  dealId: string,
+): Promise<
+  DealOSReadResult<
+    DealStatusHistorySummary[]
+  >
+> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid organization is required.",
+    };
+  }
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      dealId,
+    );
+
+  if (!cleanDealId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid deal is required.",
+    };
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "deal_status_history",
+    )
+    .select("*")
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "deal_id",
+      cleanDealId,
+    )
+    .order(
+      "changed_at",
+      {
+        ascending: false,
+      },
+    );
+
+  if (error) {
+    const mappedError =
+      mapDealOSDatabaseError(
+        error,
+        "read",
+      );
+
+    if (!mappedError.ok) {
+      return mappedError;
+    }
+
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The deal status history could not be loaded.",
+    };
+  }
+
+  return {
+    ok: true,
+    data:
+      (
+        data as DealStatusHistoryRow[]
+      ).map(
+        mapDealStatusHistorySummary,
+      ),
   };
 }
 
