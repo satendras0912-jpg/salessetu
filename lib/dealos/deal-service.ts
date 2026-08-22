@@ -22,6 +22,8 @@ import type {
   DealCommercialApprovalSummary,
   DealOfferRow,
   DealOfferSummary,
+  DealListFilters,
+  DealListResult,
   DealStatusHistoryRow,
   DealStatusHistorySummary,
 } from "@/types/dealos";
@@ -51,7 +53,26 @@ export type DealOSOperation =
   | "link_booking"
   | "read";
 
-export function normalizeDealOptionalText(
+function clampDealListInteger(
+  value: number | undefined,
+  minimum: number,
+  maximum: number,
+  fallback: number,
+): number {
+  if (!Number.isInteger(value)) {
+    return fallback;
+  }
+
+  return Math.min(
+    Math.max(
+      value as number,
+      minimum,
+    ),
+    maximum,
+  );
+}
+
+  export function normalizeDealOptionalText(
   value: string | null | undefined,
 ): string | null {
   const normalizedValue =
@@ -985,6 +1006,170 @@ function mapDealStatusHistorySummary(
 
     changedAt:
       row.changed_at,
+  };
+}
+
+export async function getDeals(
+  organizationId: string,
+  filters: DealListFilters = {},
+): Promise<
+  DealOSReadResult<DealListResult>
+> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid organization is required.",
+    };
+  }
+
+  const page =
+    clampDealListInteger(
+      filters.page,
+      1,
+      100_000,
+      1,
+    );
+
+  const pageSize =
+    clampDealListInteger(
+      filters.pageSize,
+      10,
+      100,
+      25,
+    );
+
+  const from =
+    (page - 1) * pageSize;
+
+  const to =
+    from + pageSize - 1;
+
+  const rawAssignedTo =
+    normalizeDealOptionalText(
+      filters.assignedTo,
+    );
+
+  const cleanAssignedTo =
+    rawAssignedTo
+      ? normalizeDealRequiredUuid(
+          rawAssignedTo,
+        )
+      : null;
+
+  if (
+    rawAssignedTo &&
+    !cleanAssignedTo
+  ) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid assigned user is required.",
+    };
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  let query = supabase
+    .from("deals")
+    .select(
+      "*",
+      {
+        count: "exact",
+      },
+    )
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .is(
+      "deleted_at",
+      null,
+    )
+    .order(
+      "created_at",
+      {
+        ascending: false,
+      },
+    );
+
+  if (filters.status) {
+    query = query.eq(
+      "status",
+      filters.status,
+    );
+  }
+
+  if (cleanAssignedTo) {
+    query = query.eq(
+      "assigned_to",
+      cleanAssignedTo,
+    );
+  }
+
+  const {
+    data,
+    error,
+    count,
+  } = await query.range(
+    from,
+    to,
+  );
+
+  if (error) {
+    const mappedError =
+      mapDealOSDatabaseError(
+        error,
+        "read",
+      );
+
+    if (!mappedError.ok) {
+      return mappedError;
+    }
+
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The deals could not be loaded.",
+    };
+  }
+
+  const rows =
+    (data ?? []) as DealRow[];
+
+  const total =
+    count ?? 0;
+
+  return {
+    ok: true,
+    data: {
+      items:
+        rows.map(
+          mapDealSummary,
+        ),
+
+      total,
+
+      page,
+
+      pageSize,
+
+      totalPages:
+        total === 0
+          ? 0
+          : Math.ceil(
+              total / pageSize,
+            ),
+    },
   };
 }
 

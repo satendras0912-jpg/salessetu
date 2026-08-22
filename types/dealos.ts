@@ -299,6 +299,14 @@ export type DealStatusHistoryRow = {
   changed_at: string;
 };
 
+export type DealListFilters = {
+  status?: DealStatus;
+  assignedTo?: string;
+
+  page?: number;
+  pageSize?: number;
+};
+
 
 // ============================================================
 // APPLICATION READ MODELS
@@ -354,6 +362,16 @@ export type DealSummary = {
 
   createdAt: string;
   updatedAt: string;
+};
+
+export type DealListResult = {
+  items: DealSummary[];
+
+  total: number;
+
+  page: number;
+  pageSize: number;
+  totalPages: number;
 };
 
 
