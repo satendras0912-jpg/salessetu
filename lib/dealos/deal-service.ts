@@ -28,6 +28,10 @@ import type {
   DealStatusHistorySummary,
 } from "@/types/dealos";
 
+import type {
+  OrganizationMemberOption,
+} from "@/types/lead-operational-controls";
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -39,6 +43,12 @@ type DatabaseErrorLike = {
   message?: string | null;
   details?: string | null;
   hint?: string | null;
+};
+
+type DealAssigneeOptionRow = {
+  user_id: string;
+  agent_code: string | null;
+  display_name: string | null;
 };
 
 export type DealOSOperation =
@@ -1006,6 +1016,135 @@ function mapDealStatusHistorySummary(
 
     changedAt:
       row.changed_at,
+  };
+}
+
+export async function getDealAssigneeOptions(
+  organizationId: string,
+): Promise<
+  DealOSReadResult<
+    OrganizationMemberOption[]
+  >
+> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  if (!cleanOrganizationId) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid organization is required.",
+    };
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "assignment_agent_profiles",
+    )
+    .select(
+      `
+        user_id,
+        agent_code,
+        display_name
+      `,
+    )
+    .eq(
+      "organization_id",
+      cleanOrganizationId,
+    )
+    .eq(
+      "status",
+      "active",
+    )
+    .order(
+      "display_name",
+      {
+        ascending: true,
+        nullsFirst: false,
+      },
+    );
+
+  if (error) {
+    const mappedError =
+      mapDealOSDatabaseError(
+        error,
+        "read",
+      );
+
+    if (!mappedError.ok) {
+      return mappedError;
+    }
+
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The deal assignee options could not be loaded.",
+    };
+  }
+
+  const rows =
+    (data ?? []) as unknown as
+      DealAssigneeOptionRow[];
+
+  const members = new Map<
+    string,
+    OrganizationMemberOption
+  >();
+
+  for (const row of rows) {
+    if (
+      members.has(
+        row.user_id,
+      )
+    ) {
+      continue;
+    }
+
+    const displayName =
+      row.display_name?.trim() ||
+      row.agent_code?.trim() ||
+      `Agent ${row.user_id.slice(
+        0,
+        8,
+      )}`;
+
+    members.set(
+      row.user_id,
+      {
+        userId:
+          row.user_id,
+
+        displayName,
+
+        email: null,
+      },
+    );
+  }
+
+  return {
+    ok: true,
+    data: Array.from(
+      members.values(),
+    ).sort(
+      (
+        leftMember,
+        rightMember,
+      ) =>
+        leftMember.displayName.localeCompare(
+          rightMember.displayName,
+          "en-IN",
+        ),
+    ),
   };
 }
 
