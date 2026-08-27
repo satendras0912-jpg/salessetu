@@ -47,8 +47,13 @@ export default function DealFilters({
       </div>
 
       <form
-        action="/dashboard/deals"
-        method="get"
+  key={[
+    filters.status ?? "",
+    filters.assignedTo ?? "",
+    filters.pageSize ?? 25,
+  ].join(":")}
+  action="/dashboard/deals"
+  method="get"
         className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
       >
         <label>
