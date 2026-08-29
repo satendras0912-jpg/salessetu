@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import DealLifecycleActions from "@/components/dealos/DealLifecycleActions";
+
 import DealUpdateForm from "@/components/dealos/DealUpdateForm";
 
 import DealStatusTransitionForm from "@/components/dealos/DealStatusTransitionForm";
@@ -457,6 +459,11 @@ export default function DealDetailView({
           }
         />
       ) : null}
+
+      <DealLifecycleActions
+  deal={deal}
+  access={access}
+/>
 
       <DetailSection
         title="Offers"
