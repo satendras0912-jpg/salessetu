@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import DealUpdateForm from "@/components/dealos/DealUpdateForm";
+
 import DealStatusTransitionForm from "@/components/dealos/DealStatusTransitionForm";
 
 import type {
@@ -11,8 +13,15 @@ import type {
   DealSummary,
 } from "@/types/dealos";
 
+import type {
+  OrganizationMemberOption,
+} from "@/types/lead-operational-controls";
+
 type DealDetailViewProps = {
   deal: DealSummary;
+
+  assigneeOptions:
+  OrganizationMemberOption[];
 
   offers: DealOfferSummary[];
 
@@ -282,6 +291,7 @@ function DetailSection({
 export default function DealDetailView({
   deal,
   offers,
+  assigneeOptions,
   approvals,
   statusHistory,
   access,
@@ -423,6 +433,18 @@ export default function DealDetailView({
           </DetailItem>
         </dl>
       </DetailSection>
+
+      {access.canUpdateDeal ? (
+  <DealUpdateForm
+    deal={deal}
+    assigneeOptions={
+      assigneeOptions
+    }
+    canAssignDeal={
+      access.canAssignDeal
+    }
+  />
+) : null}
 
       {access.canUpdateDeal ? (
         <DealStatusTransitionForm

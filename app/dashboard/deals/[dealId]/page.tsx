@@ -18,6 +18,7 @@ import {
 } from "@/lib/dealos/deal-contract";
 
 import {
+  getDealAssigneeOptions,
   getDealById,
   getDealCommercialApprovals,
   getDealOffers,
@@ -234,6 +235,22 @@ export default async function DealDetailPage({
     );
   }
 
+  const assigneeOptionsResult =
+  access.canAssignDeal
+    ? await getDealAssigneeOptions(
+        organizationId,
+      )
+    : {
+        ok: true as const,
+        data: [],
+      };
+
+      if (!assigneeOptionsResult.ok) {
+  throw new Error(
+    assigneeOptionsResult.message,
+  );
+}
+
   const [
     offersResult,
     approvalsResult,
@@ -286,6 +303,9 @@ export default async function DealDetailPage({
       deal={
         dealResult.data
       }
+      assigneeOptions={
+  assigneeOptionsResult.data
+}
       offers={
         offersResult.data
       }
