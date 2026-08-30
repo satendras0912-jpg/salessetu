@@ -1,9 +1,12 @@
 import "server-only";
 
 import {
-  LEAD_OPERATIONAL_PERMISSIONS,
   hasAnyPermissionCode,
   hasPermissionCode,
+} from "@/lib/auth/permission-utils";
+
+import {
+  LEAD_OPERATIONAL_PERMISSIONS,
 } from "@/lib/leads/lead-operational-contract";
 
 import type {
