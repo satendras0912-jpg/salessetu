@@ -316,6 +316,9 @@ export default async function DealDetailPage({
         statusHistoryResult.data
       }
       access={access}
+      currentUserId={
+  context.user.id
+}
       successMessage={
         successMessage
       }

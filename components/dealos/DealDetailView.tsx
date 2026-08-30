@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import DealCommercialActions from "@/components/dealos/DealCommercialActions";
+
 import DealLifecycleActions from "@/components/dealos/DealLifecycleActions";
 
 import DealUpdateForm from "@/components/dealos/DealUpdateForm";
@@ -34,6 +36,8 @@ type DealDetailViewProps = {
     DealStatusHistorySummary[];
 
   access: DealOSDataAccess;
+
+  currentUserId: string;
 
   successMessage?:
     | string
@@ -297,6 +301,7 @@ export default function DealDetailView({
   approvals,
   statusHistory,
   access,
+  currentUserId,
   successMessage,
 }: DealDetailViewProps) {
   return (
@@ -463,6 +468,14 @@ export default function DealDetailView({
       <DealLifecycleActions
   deal={deal}
   access={access}
+/>
+
+<DealCommercialActions
+  deal={deal}
+  offers={offers}
+  approvals={approvals}
+  access={access}
+  currentUserId={currentUserId}
 />
 
       <DetailSection
