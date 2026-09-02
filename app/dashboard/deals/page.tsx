@@ -378,14 +378,13 @@ export default async function DealOperationsPage({
         <p>
           Page{" "}
           <span className="font-medium text-slate-300">
-            {result.totalPages ===
-            0
-              ? 0
+            {result.totalPages === 0
+              ? 1
               : result.page}
           </span>{" "}
           of{" "}
           <span className="font-medium text-slate-300">
-            {result.totalPages}
+            {Math.max(result.totalPages, 1)}
           </span>
         </p>
       </div>
