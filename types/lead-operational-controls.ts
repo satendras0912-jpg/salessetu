@@ -217,6 +217,15 @@ export type AssignFollowUpValues = {
   reason: string;
 };
 
+export type RescheduleFollowUpValues = {
+  taskId: string;
+  expectedUpdatedAt: string;
+
+  dueAt: string;
+  reminderAt: string;
+  reason: string;
+};
+
 export type CompleteFollowUpValues = {
   taskId: string;
   expectedUpdatedAt: string;

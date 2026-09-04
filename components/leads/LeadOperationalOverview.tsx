@@ -9,6 +9,7 @@ import CheckInSiteVisitForm from "@/components/leads/CheckInSiteVisitForm";
 import CheckOutSiteVisitForm from "@/components/leads/CheckOutSiteVisitForm";
 import CompleteSiteVisitForm from "@/components/leads/CompleteSiteVisitForm";
 import CreateSiteVisitForm from "@/components/leads/CreateSiteVisitForm";
+import RescheduleFollowUpForm from "@/components/leads/RescheduleFollowUpForm";
 
 import {
   formatOperationalLabel,
@@ -31,13 +32,13 @@ function formatDateTime(
   value: string | null,
 ): string {
   if (!value) {
-    return "â€”";
+    return "Not set";
   }
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "â€”";
+    return "Not set";
   }
 
   return new Intl.DateTimeFormat(
@@ -618,8 +619,8 @@ export default function LeadOperationalOverview({
               </h3>
 
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Create, assign and complete lead follow-ups through
-                permission-controlled server actions.
+                Create, assign, reschedule and complete lead follow-ups
+                through permission-controlled server actions.
               </p>
             </div>
 
@@ -632,6 +633,11 @@ export default function LeadOperationalOverview({
               <ActionBadge
                 label="Assign"
                 allowed={access.canAssignFollowUp}
+              />
+
+              <ActionBadge
+                label="Reschedule"
+                allowed={access.canUpdateFollowUp}
               />
 
               <ActionBadge
@@ -789,8 +795,9 @@ export default function LeadOperationalOverview({
 
                     {!terminalTask &&
                     (access.canAssignFollowUp ||
-                      access.canCompleteFollowUp) ? (
-                      <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                      access.canUpdateFollowUp ||
+                        access.canCompleteFollowUp) ? (
+                      <div className="mt-5 grid gap-4 xl:grid-cols-3">
                         {access.canAssignFollowUp ? (
                           <AssignFollowUpForm
                             key={`assign-${task.id}-${task.updatedAt}`}
@@ -798,6 +805,13 @@ export default function LeadOperationalOverview({
                             members={members}
                           />
                         ) : null}
+
+                        {access.canUpdateFollowUp ? (
+                            <RescheduleFollowUpForm
+                              key={`reschedule-${task.id}-${task.updatedAt}`}
+                              task={task}
+                            />
+                          ) : null}
 
                         {access.canCompleteFollowUp ? (
                           <CompleteFollowUpForm

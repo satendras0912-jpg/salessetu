@@ -13,6 +13,7 @@ import type {
   AssignFollowUpValues,
   CompleteFollowUpValues,
   CreateFollowUpValues,
+  RescheduleFollowUpValues,
 } from "@/types/lead-operational-controls";
 
 const UUID_PATTERN =
@@ -69,7 +70,8 @@ export type FollowUpTaskServiceResult =
 type FollowUpOperation =
   | "create"
   | "assign"
-  | "complete";
+  | "complete"
+  | "reschedule";
 
 function normalizeOptionalText(
   value: string | null | undefined,
@@ -193,6 +195,9 @@ function getDefaultOperationMessage(
     case "assign":
       return "The follow-up task could not be assigned.";
 
+    case "reschedule":
+      return "The follow-up task could not be rescheduled.";
+
     case "complete":
       return "The follow-up task could not be completed.";
   }
@@ -207,6 +212,9 @@ function getTimeoutMessage(
 
     case "assign":
       return "The request timed out. Reload the lead page to verify the latest follow-up assignment before trying again.";
+
+    case "reschedule":
+      return "The request timed out. Reload the lead page to verify the latest follow-up schedule before trying again.";
 
     case "complete":
       return "The request timed out. Reload the lead page to verify the latest follow-up status before trying again.";
@@ -336,6 +344,9 @@ function mapDatabaseError(
     ) ||
     normalizedMessage.includes(
       "already cancelled",
+    ) ||
+    normalizedMessage.includes(
+      "cannot be rescheduled",
     ) ||
     normalizedMessage.includes(
       "cannot be completed",
@@ -936,6 +947,187 @@ export async function assignFollowUpTask(
       code: "database_error",
       message:
         "The follow-up assignment may have changed, but its response could not be verified. Reload the lead page before trying again.",
+    };
+  }
+
+  return result;
+}
+
+export async function rescheduleFollowUpTask(
+  organizationId: string,
+  values: RescheduleFollowUpValues,
+): Promise<FollowUpTaskServiceResult> {
+  const cleanOrganizationId =
+    normalizeRequiredUuid(
+      organizationId,
+      "Organization ID",
+    );
+
+  if (!cleanOrganizationId) {
+    return createValidationFailure(
+      "An active organization context is required to reschedule a follow-up.",
+    );
+  }
+
+  const cleanTaskId =
+    normalizeRequiredUuid(
+      values.taskId,
+      "Follow-up task ID",
+    );
+
+  if (!cleanTaskId) {
+    return createValidationFailure(
+      "A valid follow-up task ID is required.",
+    );
+  }
+
+  /*
+   * Preserve the original PostgreSQL timestamp text so
+   * microsecond precision is not lost before the RPC call.
+   */
+  const cleanExpectedUpdatedAt =
+    values.expectedUpdatedAt.trim();
+
+  if (
+    !cleanExpectedUpdatedAt ||
+    Number.isNaN(
+      Date.parse(cleanExpectedUpdatedAt),
+    )
+  ) {
+    return createValidationFailure(
+      "The original follow-up update timestamp is invalid.",
+    );
+  }
+
+  const cleanDueAt =
+    normalizeTimestamp(
+      values.dueAt,
+    );
+
+  if (!cleanDueAt) {
+    return createValidationFailure(
+      "Enter a valid follow-up due date and time.",
+    );
+  }
+
+  if (
+    new Date(cleanDueAt).getTime() <=
+    Date.now()
+  ) {
+    return createValidationFailure(
+      "The rescheduled due time must be in the future.",
+    );
+  }
+
+  const rawReminderAt =
+    normalizeOptionalText(
+      values.reminderAt,
+    );
+
+  const cleanReminderAt =
+    rawReminderAt
+      ? normalizeTimestamp(
+          rawReminderAt,
+        )
+      : null;
+
+  if (
+    rawReminderAt &&
+    !cleanReminderAt
+  ) {
+    return createValidationFailure(
+      "Enter a valid reminder date and time.",
+    );
+  }
+
+  if (
+    cleanReminderAt &&
+    new Date(cleanReminderAt).getTime() >
+      new Date(cleanDueAt).getTime()
+  ) {
+    return createValidationFailure(
+      "The reminder must be scheduled on or before the follow-up due time.",
+    );
+  }
+
+  const cleanReason =
+    values.reason
+      .replace(/\s+/g, " ")
+      .trim();
+
+  if (!cleanReason) {
+    return createValidationFailure(
+      "Enter a reason for rescheduling this follow-up.",
+    );
+  }
+
+  if (
+    cleanReason.length >
+    OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    return createValidationFailure(
+      `Reschedule reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  const supabase =
+    await createClient();
+
+  const scopedTaskResult =
+    await loadScopedFollowUpTask(
+      supabase,
+      cleanOrganizationId,
+      cleanTaskId,
+      "reschedule",
+    );
+
+  if (!scopedTaskResult.ok) {
+    return scopedTaskResult.result;
+  }
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "reschedule_follow_up_task",
+    {
+      requested_task_id:
+        cleanTaskId,
+
+      requested_due_at:
+        cleanDueAt,
+
+      requested_reminder_at:
+        cleanReminderAt,
+
+      requested_reason:
+        cleanReason,
+
+      requested_expected_updated_at:
+        cleanExpectedUpdatedAt,
+    },
+  );
+
+  if (error) {
+    return mapDatabaseError(
+      error,
+      "reschedule",
+    );
+  }
+
+  const result =
+    parseMutationResult(
+      data,
+      cleanTaskId,
+      scopedTaskResult.row.lead_id,
+    );
+
+  if (!result) {
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The follow-up may have been rescheduled, but its response could not be verified. Reload the lead page before trying again.",
     };
   }
 
