@@ -11,17 +11,18 @@ import {
 } from "@/lib/auth/access-control";
 
 import {
+  assignFollowUpTask,
+  completeFollowUpTask,
+  createFollowUpTask,
+  rescheduleFollowUpTask,
+  type FollowUpTaskServiceResult,
+} from "@/lib/leads/follow-up-task-service";
+
+import {
   manuallyAssignLead,
   manuallyUnassignLead,
   type LeadAssignmentServiceResult,
 } from "@/lib/leads/lead-assignment-service";
-
-import {
-  assignFollowUpTask,
-  completeFollowUpTask,
-  createFollowUpTask,
-  type FollowUpTaskServiceResult,
-} from "@/lib/leads/follow-up-task-service";
 
 import {
   assignSiteVisit,
@@ -66,6 +67,7 @@ SiteVisitCheckOutValues,
   LeadStatusTransitionValues,
   OperationalActionState,
   OperationalFieldErrors,
+  RescheduleFollowUpValues,
 } from "@/types/lead-operational-controls";
 
 const UUID_PATTERN =
@@ -132,6 +134,17 @@ type AssignFollowUpParseResult =
   | {
       success: true;
       values: AssignFollowUpValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+    type RescheduleFollowUpParseResult =
+  | {
+      success: true;
+      values: RescheduleFollowUpValues;
     }
   | {
       success: false;
@@ -1085,6 +1098,190 @@ function parseAssignFollowUpForm(
       taskId,
       expectedUpdatedAt,
       assignedTo,
+      reason,
+    },
+  };
+}
+
+function parseRescheduleFollowUpForm(
+  formData: FormData,
+): RescheduleFollowUpParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const taskId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "taskId",
+      ),
+    );
+
+  const expectedUpdatedAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "expectedUpdatedAt",
+      ),
+    );
+
+  const dueAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "dueAt",
+      ),
+    );
+
+  const reminderAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "reminderAt",
+      ),
+    );
+
+  const reason =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "reason",
+      ),
+    );
+
+  if (!taskId) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "Follow-up task ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(taskId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "The follow-up task ID is invalid.",
+    );
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is required.",
+    );
+  } else if (
+    Number.isNaN(
+      Date.parse(expectedUpdatedAt),
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is invalid.",
+    );
+  }
+
+  const parsedDueAt =
+    dueAt
+      ? new Date(dueAt)
+      : null;
+
+  if (!dueAt) {
+    addFieldError(
+      fieldErrors,
+      "dueAt",
+      "Enter a new follow-up due date and time.",
+    );
+  } else if (
+    !parsedDueAt ||
+    Number.isNaN(
+      parsedDueAt.getTime(),
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "dueAt",
+      "The follow-up due date and time is invalid.",
+    );
+  } else if (
+    parsedDueAt.getTime() <=
+    Date.now()
+  ) {
+    addFieldError(
+      fieldErrors,
+      "dueAt",
+      "The rescheduled due time must be in the future.",
+    );
+  }
+
+  if (reminderAt) {
+    const parsedReminderAt =
+      new Date(reminderAt);
+
+    if (
+      Number.isNaN(
+        parsedReminderAt.getTime(),
+      )
+    ) {
+      addFieldError(
+        fieldErrors,
+        "reminderAt",
+        "The reminder date and time is invalid.",
+      );
+    } else if (
+      parsedDueAt &&
+      !Number.isNaN(
+        parsedDueAt.getTime(),
+      ) &&
+      parsedReminderAt.getTime() >
+        parsedDueAt.getTime()
+    ) {
+      addFieldError(
+        fieldErrors,
+        "reminderAt",
+        "The reminder must be scheduled on or before the follow-up due time.",
+      );
+    }
+  }
+
+  if (!reason) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      "Enter a reason for rescheduling this follow-up.",
+    );
+  } else if (
+    reason.length >
+    OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      `Reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  if (
+    hasFieldErrors(fieldErrors)
+  ) {
+    return {
+      success: false,
+      message:
+        "Please correct the highlighted follow-up reschedule fields.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+
+    values: {
+      taskId,
+      expectedUpdatedAt,
+      dueAt,
+      reminderAt,
       reason,
     },
   };
@@ -2641,9 +2838,10 @@ function mapAssignmentFailure(
 function mapFollowUpFailure(
   result: FollowUpFailureResult,
   operation:
-    | "create"
-    | "assign"
-    | "complete",
+  | "create"
+  | "assign"
+  | "complete"
+  | "reschedule",
 ): OperationalActionState {
   switch (result.code) {
     case "conflict":
@@ -3195,6 +3393,77 @@ export async function assignFollowUpAction(
 
   redirect(
     `/dashboard/leads/${result.leadId}?followUpAssigned=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function rescheduleFollowUpAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseRescheduleFollowUpForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .updateFollowUp,
+      ],
+
+      loginRedirectTo:
+        "/login?next=/dashboard/leads",
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to reschedule a follow-up.",
+    );
+  }
+
+  const result =
+    await rescheduleFollowUpTask(
+      organizationId,
+      parsed.values,
+    );
+
+  if (!result.ok) {
+    return mapFollowUpFailure(
+      result,
+      "reschedule",
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    result.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${result.leadId}?followUpRescheduled=1`,
     RedirectType.replace,
   );
 }
