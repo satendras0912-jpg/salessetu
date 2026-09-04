@@ -58,7 +58,6 @@ function isTerminalFollowUpStatus(
     "completed",
     "cancelled",
     "failed",
-    "rescheduled",
   ].includes(status);
 }
 
