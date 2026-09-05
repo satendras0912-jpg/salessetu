@@ -14,6 +14,7 @@ import type {
   CompleteFollowUpValues,
   CreateFollowUpValues,
   RescheduleFollowUpValues,
+  CancelFollowUpValues,
 } from "@/types/lead-operational-controls";
 
 const UUID_PATTERN =
@@ -71,7 +72,8 @@ type FollowUpOperation =
   | "create"
   | "assign"
   | "complete"
-  | "reschedule";
+  | "reschedule"
+  | "cancel";
 
 function normalizeOptionalText(
   value: string | null | undefined,
@@ -198,6 +200,9 @@ function getDefaultOperationMessage(
     case "reschedule":
       return "The follow-up task could not be rescheduled.";
 
+    case "cancel":
+      return "The follow-up task could not be cancelled.";
+
     case "complete":
       return "The follow-up task could not be completed.";
   }
@@ -215,6 +220,9 @@ function getTimeoutMessage(
 
     case "reschedule":
       return "The request timed out. Reload the lead page to verify the latest follow-up schedule before trying again.";
+
+    case "cancel":
+      return "The request timed out. Reload the lead page to verify the latest follow-up status before trying again.";
 
     case "complete":
       return "The request timed out. Reload the lead page to verify the latest follow-up status before trying again.";
@@ -347,6 +355,9 @@ function mapDatabaseError(
     ) ||
     normalizedMessage.includes(
       "cannot be rescheduled",
+    ) ||
+    normalizedMessage.includes(
+      "cannot be cancelled",
     ) ||
     normalizedMessage.includes(
       "cannot be completed",
@@ -1128,6 +1139,130 @@ export async function rescheduleFollowUpTask(
       code: "database_error",
       message:
         "The follow-up may have been rescheduled, but its response could not be verified. Reload the lead page before trying again.",
+    };
+  }
+
+  return result;
+}
+
+export async function cancelFollowUpTask(
+  organizationId: string,
+  values: CancelFollowUpValues,
+): Promise<FollowUpTaskServiceResult> {
+  const cleanOrganizationId =
+    normalizeRequiredUuid(
+      organizationId,
+      "Organization ID",
+    );
+
+  if (!cleanOrganizationId) {
+    return createValidationFailure(
+      "An active organization context is required to cancel a follow-up.",
+    );
+  }
+
+  const cleanTaskId =
+    normalizeRequiredUuid(
+      values.taskId,
+      "Follow-up task ID",
+    );
+
+  if (!cleanTaskId) {
+    return createValidationFailure(
+      "A valid follow-up task ID is required.",
+    );
+  }
+
+  /*
+   * Preserve the original PostgreSQL timestamp text so
+   * microsecond precision is not lost before the RPC call.
+   */
+  const cleanExpectedUpdatedAt =
+    values.expectedUpdatedAt.trim();
+
+  if (
+    !cleanExpectedUpdatedAt ||
+    Number.isNaN(
+      Date.parse(cleanExpectedUpdatedAt),
+    )
+  ) {
+    return createValidationFailure(
+      "The original follow-up update timestamp is invalid.",
+    );
+  }
+
+  const cleanReason =
+    normalizeOptionalText(
+      values.reason,
+    );
+
+  if (!cleanReason) {
+    return createValidationFailure(
+      "Enter a reason for cancelling this follow-up.",
+    );
+  }
+
+  if (
+    cleanReason.length >
+      OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    return createValidationFailure(
+      `Cancellation reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  const supabase =
+    await createClient();
+
+  const scopedTaskResult =
+    await loadScopedFollowUpTask(
+      supabase,
+      cleanOrganizationId,
+      cleanTaskId,
+      "cancel",
+    );
+
+  if (!scopedTaskResult.ok) {
+    return scopedTaskResult.result;
+  }
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "cancel_follow_up_task",
+    {
+      requested_task_id:
+        cleanTaskId,
+
+      requested_reason:
+        cleanReason,
+
+      requested_expected_updated_at:
+        cleanExpectedUpdatedAt,
+    },
+  );
+
+  if (error) {
+    return mapDatabaseError(
+      error,
+      "cancel",
+    );
+  }
+
+  const result =
+    parseMutationResult(
+      data,
+      cleanTaskId,
+      scopedTaskResult.row.lead_id,
+    );
+
+  if (!result) {
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The follow-up may have been cancelled, but its response could not be verified. Reload the lead page before trying again.",
     };
   }
 

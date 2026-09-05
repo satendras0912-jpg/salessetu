@@ -226,6 +226,13 @@ export type RescheduleFollowUpValues = {
   reason: string;
 };
 
+export type CancelFollowUpValues = {
+  taskId: string;
+  expectedUpdatedAt: string;
+
+  reason: string;
+};
+
 export type CompleteFollowUpValues = {
   taskId: string;
   expectedUpdatedAt: string;
