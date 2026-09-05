@@ -19,6 +19,8 @@ import type {
   LeadOperationalContext,
 } from "@/lib/leads/lead-operational-context-service";
 
+import CancelFollowUpForm from "@/components/leads/CancelFollowUpForm";
+
 import type {
   LeadOperationalAccess,
 } from "@/types/lead-operational-access";
@@ -488,7 +490,7 @@ export default function LeadOperationalOverview({
                   ? formatDateTime(
                       nextFollowUp.dueAt,
                     )
-                  : "â€”"}
+                  : "Not set"}
               </p>
             </div>
 
@@ -618,7 +620,7 @@ export default function LeadOperationalOverview({
               </h3>
 
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Create, assign, reschedule and complete lead follow-ups
+                Create, assign, reschedule, complete and cancel lead follow-ups
                 through permission-controlled server actions.
               </p>
             </div>
@@ -642,6 +644,11 @@ export default function LeadOperationalOverview({
               <ActionBadge
                 label="Complete"
                 allowed={access.canCompleteFollowUp}
+              />
+
+              <ActionBadge
+                label="Cancel"
+                allowed={access.canUpdateFollowUp}
               />
             </div>
           </header>
@@ -818,6 +825,15 @@ export default function LeadOperationalOverview({
                             task={task}
                           />
                         ) : null}
+
+                          {access.canUpdateFollowUp ? (
+                            <div className="xl:col-span-3">
+                              <CancelFollowUpForm
+                                key={`cancel-${task.id}-${task.updatedAt}`}
+                                task={task}
+                              />
+                            </div>
+                          ) : null}
                       </div>
                     ) : null}
                   </article>

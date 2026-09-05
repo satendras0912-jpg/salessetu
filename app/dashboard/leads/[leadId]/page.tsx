@@ -185,6 +185,11 @@ function getSuccessMessage(
       searchParams.followUpRescheduled,
     ) === "1";
 
+  const followUpWasCancelled =
+      getSingleValue(
+    searchParams.followUpCancelled,
+      ) === "1";
+
   const followUpWasCompleted =
     getSingleValue(
       searchParams.followUpCompleted,
@@ -221,6 +226,10 @@ function getSuccessMessage(
   if (followUpWasRescheduled) {
     return "Follow-up rescheduled successfully.";
   }
+
+  if (followUpWasCancelled) {
+  return "Follow-up cancelled successfully.";
+}
 
   if (followUpWasCompleted) {
     return "Follow-up completed successfully.";

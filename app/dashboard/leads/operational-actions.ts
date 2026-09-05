@@ -15,6 +15,7 @@ import {
   completeFollowUpTask,
   createFollowUpTask,
   rescheduleFollowUpTask,
+  cancelFollowUpTask,
   type FollowUpTaskServiceResult,
 } from "@/lib/leads/follow-up-task-service";
 
@@ -44,9 +45,9 @@ import {
   OPERATIONAL_PRIORITIES,
   isOperationalValue,
   SITE_VISIT_CHECK_IN_METHODS,
-SITE_VISIT_OUTCOMES,
-SITE_VISIT_PARTIES,
-SITE_VISIT_TYPES,
+  SITE_VISIT_OUTCOMES,
+  SITE_VISIT_PARTIES,
+  SITE_VISIT_TYPES,
 } from "@/lib/leads/lead-operational-contract";
 
 import {
@@ -58,12 +59,13 @@ import type {
   AssignFollowUpValues,
   CompleteFollowUpValues,
   CreateFollowUpValues,
+  CancelFollowUpValues,
   AssignSiteVisitValues,
-CancelSiteVisitValues,
-CompleteSiteVisitValues,
-CreateSiteVisitValues,
-SiteVisitCheckInValues,
-SiteVisitCheckOutValues,
+  CancelSiteVisitValues,
+  CompleteSiteVisitValues,
+  CreateSiteVisitValues,
+  SiteVisitCheckInValues,
+  SiteVisitCheckOutValues,
   LeadStatusTransitionValues,
   OperationalActionState,
   OperationalFieldErrors,
@@ -145,6 +147,17 @@ type AssignFollowUpParseResult =
   | {
       success: true;
       values: RescheduleFollowUpValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+    type CancelFollowUpParseResult =
+  | {
+      success: true;
+      values: CancelFollowUpValues;
     }
   | {
       success: false;
@@ -1282,6 +1295,108 @@ function parseRescheduleFollowUpForm(
       expectedUpdatedAt,
       dueAt,
       reminderAt,
+      reason,
+    },
+  };
+}
+
+function parseCancelFollowUpForm(
+  formData: FormData,
+): CancelFollowUpParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const taskId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "taskId",
+      ),
+    );
+
+  const expectedUpdatedAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "expectedUpdatedAt",
+      ),
+    );
+
+  const reason =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "reason",
+      ),
+    );
+
+  if (!taskId) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "Follow-up task ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(taskId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "The follow-up task ID is invalid.",
+    );
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is required.",
+    );
+  } else if (
+    Number.isNaN(
+      Date.parse(expectedUpdatedAt),
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is invalid.",
+    );
+  }
+
+  if (!reason) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      "Enter a reason for cancelling this follow-up.",
+    );
+  } else if (
+    reason.length >
+      OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      `Cancellation reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  if (
+    Object.keys(fieldErrors).length > 0
+  ) {
+    return {
+      success: false,
+      message:
+        "Review the cancellation details and try again.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+    values: {
+      taskId,
+      expectedUpdatedAt,
       reason,
     },
   };
@@ -2837,11 +2952,12 @@ function mapAssignmentFailure(
 
 function mapFollowUpFailure(
   result: FollowUpFailureResult,
-  operation:
-  | "create"
-  | "assign"
-  | "complete"
-  | "reschedule",
+    operation:
+    | "create"
+    | "assign"
+    | "complete"
+    | "reschedule"
+    | "cancel",
 ): OperationalActionState {
   switch (result.code) {
     case "conflict":
@@ -3464,6 +3580,77 @@ export async function rescheduleFollowUpAction(
 
   redirect(
     `/dashboard/leads/${result.leadId}?followUpRescheduled=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function cancelFollowUpAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseCancelFollowUpForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .updateFollowUp,
+      ],
+
+      loginRedirectTo:
+        "/login?next=/dashboard/leads",
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to cancel a follow-up.",
+    );
+  }
+
+  const result =
+    await cancelFollowUpTask(
+      organizationId,
+      parsed.values,
+    );
+
+  if (!result.ok) {
+    return mapFollowUpFailure(
+      result,
+      "cancel",
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    result.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${result.leadId}?followUpCancelled=1`,
     RedirectType.replace,
   );
 }
