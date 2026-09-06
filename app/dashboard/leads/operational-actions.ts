@@ -16,6 +16,7 @@ import {
   createFollowUpTask,
   rescheduleFollowUpTask,
   cancelFollowUpTask,
+  deleteFollowUpTask,
   type FollowUpTaskServiceResult,
 } from "@/lib/leads/follow-up-task-service";
 
@@ -70,6 +71,7 @@ import type {
   OperationalActionState,
   OperationalFieldErrors,
   RescheduleFollowUpValues,
+  DeleteFollowUpValues,
 } from "@/types/lead-operational-controls";
 
 const UUID_PATTERN =
@@ -158,6 +160,17 @@ type AssignFollowUpParseResult =
   | {
       success: true;
       values: CancelFollowUpValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+    type DeleteFollowUpParseResult =
+  | {
+      success: true;
+      values: DeleteFollowUpValues;
     }
   | {
       success: false;
@@ -1388,6 +1401,108 @@ function parseCancelFollowUpForm(
       success: false,
       message:
         "Review the cancellation details and try again.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+    values: {
+      taskId,
+      expectedUpdatedAt,
+      reason,
+    },
+  };
+}
+
+function parseDeleteFollowUpForm(
+  formData: FormData,
+): DeleteFollowUpParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const taskId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "taskId",
+      ),
+    );
+
+  const expectedUpdatedAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "expectedUpdatedAt",
+      ),
+    );
+
+  const reason =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "reason",
+      ),
+    );
+
+  if (!taskId) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "Follow-up task ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(taskId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "The follow-up task ID is invalid.",
+    );
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is required.",
+    );
+  } else if (
+    Number.isNaN(
+      Date.parse(expectedUpdatedAt),
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is invalid.",
+    );
+  }
+
+  if (!reason) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      "Enter a reason for deleting this follow-up.",
+    );
+  } else if (
+    reason.length >
+      OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      `Deletion reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  if (
+    Object.keys(fieldErrors).length > 0
+  ) {
+    return {
+      success: false,
+      message:
+        "Review the deletion details and try again.",
       fieldErrors,
     };
   }
@@ -2952,12 +3067,13 @@ function mapAssignmentFailure(
 
 function mapFollowUpFailure(
   result: FollowUpFailureResult,
-    operation:
+  operation:
     | "create"
     | "assign"
     | "complete"
     | "reschedule"
-    | "cancel",
+    | "cancel"
+    | "delete",
 ): OperationalActionState {
   switch (result.code) {
     case "conflict":
@@ -3651,6 +3767,77 @@ export async function cancelFollowUpAction(
 
   redirect(
     `/dashboard/leads/${result.leadId}?followUpCancelled=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function deleteFollowUpAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseDeleteFollowUpForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .deleteFollowUp,
+      ],
+
+      loginRedirectTo:
+        "/login?next=/dashboard/leads",
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to delete a follow-up.",
+    );
+  }
+
+  const result =
+    await deleteFollowUpTask(
+      organizationId,
+      parsed.values,
+    );
+
+  if (!result.ok) {
+    return mapFollowUpFailure(
+      result,
+      "delete",
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    result.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${result.leadId}?followUpDeleted=1`,
     RedirectType.replace,
   );
 }

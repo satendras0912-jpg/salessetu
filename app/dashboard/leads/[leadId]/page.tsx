@@ -190,6 +190,11 @@ function getSuccessMessage(
     searchParams.followUpCancelled,
       ) === "1";
 
+  const followUpWasDeleted =
+  getSingleValue(
+    searchParams.followUpDeleted,
+  ) === "1";
+
   const followUpWasCompleted =
     getSingleValue(
       searchParams.followUpCompleted,
@@ -229,7 +234,11 @@ function getSuccessMessage(
 
   if (followUpWasCancelled) {
   return "Follow-up cancelled successfully.";
-}
+  }
+
+  if (followUpWasDeleted) {
+  return "Follow-up deleted successfully.";
+  }
 
   if (followUpWasCompleted) {
     return "Follow-up completed successfully.";

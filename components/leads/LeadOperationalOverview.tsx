@@ -21,6 +21,8 @@ import type {
 
 import CancelFollowUpForm from "@/components/leads/CancelFollowUpForm";
 
+import DeleteFollowUpForm from "@/components/leads/DeleteFollowUpForm";
+
 import type {
   LeadOperationalAccess,
 } from "@/types/lead-operational-access";
@@ -836,6 +838,15 @@ export default function LeadOperationalOverview({
                           ) : null}
                       </div>
                     ) : null}
+
+                    {access.canDeleteFollowUp ? (
+                      <div className="mt-5">
+                        <DeleteFollowUpForm
+                          key={`delete-${task.id}-${task.updatedAt}`}
+                          task={task}
+                        />
+                      </div>
+                    ) : null}
                   </article>
                 );
               })}
@@ -895,10 +906,10 @@ export default function LeadOperationalOverview({
             }
           />
 
-          <ActionBadge
-            label="Check out"
-            allowed={
-              access.canCheckInSiteVisit
+              <ActionBadge
+                label="Check out"
+                allowed={
+                  access.canCheckInSiteVisit
             }
           />
 
@@ -915,6 +926,11 @@ export default function LeadOperationalOverview({
               access.canCancelSiteVisit
             }
           />
+
+              <ActionBadge
+                label="Delete"
+                allowed={access.canDeleteFollowUp}
+              />
         </div>
       </header>
 

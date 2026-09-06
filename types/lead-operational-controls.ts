@@ -233,6 +233,13 @@ export type CancelFollowUpValues = {
   reason: string;
 };
 
+export type DeleteFollowUpValues = {
+  taskId: string;
+  expectedUpdatedAt: string;
+
+  reason: string;
+};
+
 export type CompleteFollowUpValues = {
   taskId: string;
   expectedUpdatedAt: string;
