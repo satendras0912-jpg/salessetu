@@ -101,6 +101,9 @@ type FollowUpTaskRow = {
   due_at: string;
   reminder_at: string | null;
 
+  sla_due_at: string | null;
+  sla_status: string;
+
   started_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
@@ -242,6 +245,8 @@ const FOLLOW_UP_SELECT = `
   assigned_to,
   due_at,
   reminder_at,
+  sla_due_at,
+  sla_status,
   started_at,
   completed_at,
   cancelled_at,
@@ -528,6 +533,12 @@ function mapFollowUpTask(
 
     reminderAt:
       row.reminder_at,
+
+    slaDueAt:
+      row.sla_due_at,
+
+    slaStatus:
+      row.sla_status as FollowUpTaskSummary["slaStatus"],
 
     startedAt:
       row.started_at,

@@ -99,6 +99,9 @@ export function buildLeadOperationalDataAccess({
 
         LEAD_OPERATIONAL_PERMISSIONS
           .deleteFollowUp,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .manageFollowUpSla,
       ],
     );
 
@@ -280,6 +283,14 @@ export function buildLeadOperationalAccess({
         isOwner,
         LEAD_OPERATIONAL_PERMISSIONS
           .deleteFollowUp,
+      ),
+
+    canManageFollowUpSla:
+      hasAccess(
+    permissionCodes,
+    isOwner,
+    LEAD_OPERATIONAL_PERMISSIONS
+      .manageFollowUpSla,
       ),
 
     canCreateSiteVisit:

@@ -16,6 +16,7 @@ import type {
   RescheduleFollowUpValues,
   CancelFollowUpValues,
   DeleteFollowUpValues,
+  ManageFollowUpSlaValues,
 } from "@/types/lead-operational-controls";
 
 const UUID_PATTERN =
@@ -75,7 +76,8 @@ type FollowUpOperation =
   | "complete"
   | "reschedule"
   | "cancel"
-  | "delete";
+  | "delete"
+  | "manage_sla";
 
 function normalizeOptionalText(
   value: string | null | undefined,
@@ -208,6 +210,9 @@ function getDefaultOperationMessage(
     case "delete":
       return "The follow-up task could not be deleted.";
 
+    case "manage_sla":
+      return "The follow-up SLA could not be updated.";
+
     case "complete":
       return "The follow-up task could not be completed.";
   }
@@ -231,6 +236,9 @@ function getTimeoutMessage(
 
     case "delete":
       return "The request timed out. Reload the lead page to verify whether the follow-up still exists before trying again.";
+
+    case "manage_sla":
+      return "The request timed out. Reload the lead page to verify the latest follow-up SLA before trying again.";
 
     case "complete":
       return "The request timed out. Reload the lead page to verify the latest follow-up status before trying again.";
@@ -366,6 +374,9 @@ function mapDatabaseError(
     ) ||
     normalizedMessage.includes(
       "cannot be cancelled",
+    ) ||
+    normalizedMessage.includes(
+      "terminal follow-up task sla cannot be changed",
     ) ||
     normalizedMessage.includes(
       "cannot be completed",
@@ -1395,6 +1406,152 @@ export async function deleteFollowUpTask(
       code: "database_error",
       message:
         "The follow-up may have been deleted, but its response could not be verified. Reload the lead page before trying again.",
+    };
+  }
+
+  return result;
+}
+
+export async function manageFollowUpSla(
+  organizationId: string,
+  values: ManageFollowUpSlaValues,
+): Promise<FollowUpTaskServiceResult> {
+  const cleanOrganizationId =
+    normalizeRequiredUuid(
+      organizationId,
+      "Organization ID",
+    );
+
+  if (!cleanOrganizationId) {
+    return createValidationFailure(
+      "An active organization context is required to manage follow-up SLA.",
+    );
+  }
+
+  const cleanTaskId =
+    normalizeRequiredUuid(
+      values.taskId,
+      "Follow-up task ID",
+    );
+
+  if (!cleanTaskId) {
+    return createValidationFailure(
+      "A valid follow-up task ID is required.",
+    );
+  }
+
+  /*
+   * Preserve the original PostgreSQL timestamp text so
+   * microsecond precision is not lost before the RPC call.
+   */
+  const cleanExpectedUpdatedAt =
+    values.expectedUpdatedAt.trim();
+
+  if (
+    !cleanExpectedUpdatedAt ||
+    Number.isNaN(
+      Date.parse(cleanExpectedUpdatedAt),
+    )
+  ) {
+    return createValidationFailure(
+      "The original follow-up update timestamp is invalid.",
+    );
+  }
+
+  const requestedSlaDueAt =
+    values.slaDueAt.trim();
+
+  const cleanSlaDueAt =
+    requestedSlaDueAt
+      ? normalizeTimestamp(
+          requestedSlaDueAt,
+        )
+      : null;
+
+  if (
+    requestedSlaDueAt &&
+    !cleanSlaDueAt
+  ) {
+    return createValidationFailure(
+      "Enter a valid SLA deadline or leave it empty to clear SLA.",
+    );
+  }
+
+  const cleanReason =
+    normalizeOptionalText(
+      values.reason,
+    );
+
+  if (!cleanReason) {
+    return createValidationFailure(
+      "Enter a reason for changing this follow-up SLA.",
+    );
+  }
+
+  if (
+    cleanReason.length >
+      OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    return createValidationFailure(
+      `SLA change reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  const supabase =
+    await createClient();
+
+  const scopedTaskResult =
+    await loadScopedFollowUpTask(
+      supabase,
+      cleanOrganizationId,
+      cleanTaskId,
+      "manage_sla",
+    );
+
+  if (!scopedTaskResult.ok) {
+    return scopedTaskResult.result;
+  }
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "manage_follow_up_sla",
+    {
+      requested_task_id:
+        cleanTaskId,
+
+      requested_sla_due_at:
+        cleanSlaDueAt,
+
+      requested_reason:
+        cleanReason,
+
+      requested_expected_updated_at:
+        cleanExpectedUpdatedAt,
+    },
+  );
+
+  if (error) {
+    return mapDatabaseError(
+      error,
+      "manage_sla",
+    );
+  }
+
+  const result =
+    parseMutationResult(
+      data,
+      cleanTaskId,
+      scopedTaskResult.row.lead_id,
+    );
+
+  if (!result) {
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The follow-up SLA may have been changed, but its response could not be verified. Reload the lead page before trying again.",
     };
   }
 

@@ -157,6 +157,13 @@ export type FollowUpStatus =
   | "rescheduled"
   | "failed";
 
+export type FollowUpSlaStatus =
+  | "not_applicable"
+  | "within_sla"
+  | "at_risk"
+  | "breached"
+  | "resolved";
+
 export type OperationalPriority =
   | "low"
   | "normal"
@@ -178,6 +185,9 @@ export type FollowUpTaskSummary = {
 
   dueAt: string;
   reminderAt: string | null;
+
+  slaDueAt: string | null;
+  slaStatus: FollowUpSlaStatus;
 
   startedAt: string | null;
   completedAt: string | null;
@@ -237,6 +247,14 @@ export type DeleteFollowUpValues = {
   taskId: string;
   expectedUpdatedAt: string;
 
+  reason: string;
+};
+
+export type ManageFollowUpSlaValues = {
+  taskId: string;
+  expectedUpdatedAt: string;
+
+  slaDueAt: string;
   reason: string;
 };
 
