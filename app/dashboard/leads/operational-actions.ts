@@ -17,6 +17,7 @@ import {
   rescheduleFollowUpTask,
   cancelFollowUpTask,
   deleteFollowUpTask,
+  manageFollowUpSla,
   type FollowUpTaskServiceResult,
 } from "@/lib/leads/follow-up-task-service";
 
@@ -72,6 +73,7 @@ import type {
   OperationalFieldErrors,
   RescheduleFollowUpValues,
   DeleteFollowUpValues,
+  ManageFollowUpSlaValues,
 } from "@/types/lead-operational-controls";
 
 const UUID_PATTERN =
@@ -171,6 +173,17 @@ type AssignFollowUpParseResult =
   | {
       success: true;
       values: DeleteFollowUpValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+    type ManageFollowUpSlaParseResult =
+  | {
+      success: true;
+      values: ManageFollowUpSlaValues;
     }
   | {
       success: false;
@@ -1512,6 +1525,130 @@ function parseDeleteFollowUpForm(
     values: {
       taskId,
       expectedUpdatedAt,
+      reason,
+    },
+  };
+}
+
+function parseManageFollowUpSlaForm(
+  formData: FormData,
+): ManageFollowUpSlaParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const taskId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "taskId",
+      ),
+    );
+
+  const expectedUpdatedAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "expectedUpdatedAt",
+      ),
+    );
+
+  const slaDueAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "slaDueAt",
+      ),
+    );
+
+  const reason =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "reason",
+      ),
+    );
+
+  if (!taskId) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "Follow-up task ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(taskId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "The follow-up task ID is invalid.",
+    );
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is required.",
+    );
+  } else if (
+    Number.isNaN(
+      Date.parse(expectedUpdatedAt),
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is invalid.",
+    );
+  }
+
+  if (
+    slaDueAt &&
+    Number.isNaN(
+      Date.parse(slaDueAt),
+    )
+  ) {
+    addFieldError(
+      fieldErrors,
+      "slaDueAt",
+      "Enter a valid SLA deadline.",
+    );
+  }
+
+  if (!reason) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      "Enter a reason for changing this follow-up SLA.",
+    );
+  } else if (
+    reason.length >
+      OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      `SLA change reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  if (
+    Object.keys(fieldErrors).length > 0
+  ) {
+    return {
+      success: false,
+      message:
+        "Review the SLA details and try again.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+    values: {
+      taskId,
+      expectedUpdatedAt,
+      slaDueAt,
       reason,
     },
   };
@@ -3073,7 +3210,8 @@ function mapFollowUpFailure(
     | "complete"
     | "reschedule"
     | "cancel"
-    | "delete",
+    | "delete"
+    | "manage_sla",
 ): OperationalActionState {
   switch (result.code) {
     case "conflict":
@@ -3838,6 +3976,77 @@ export async function deleteFollowUpAction(
 
   redirect(
     `/dashboard/leads/${result.leadId}?followUpDeleted=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function manageFollowUpSlaAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseManageFollowUpSlaForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .manageFollowUpSla,
+      ],
+
+      loginRedirectTo:
+        "/login?next=/dashboard/leads",
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to manage follow-up SLA.",
+    );
+  }
+
+  const result =
+    await manageFollowUpSla(
+      organizationId,
+      parsed.values,
+    );
+
+  if (!result.ok) {
+    return mapFollowUpFailure(
+      result,
+      "manage_sla",
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    result.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${result.leadId}?followUpSlaUpdated=1`,
     RedirectType.replace,
   );
 }

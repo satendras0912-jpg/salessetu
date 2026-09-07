@@ -195,6 +195,11 @@ function getSuccessMessage(
     searchParams.followUpDeleted,
   ) === "1";
 
+  const followUpSlaWasUpdated =
+  getSingleValue(
+    searchParams.followUpSlaUpdated,
+  ) === "1";
+
   const followUpWasCompleted =
     getSingleValue(
       searchParams.followUpCompleted,
@@ -238,6 +243,10 @@ function getSuccessMessage(
 
   if (followUpWasDeleted) {
   return "Follow-up deleted successfully.";
+  }
+
+  if (followUpSlaWasUpdated) {
+  return "Follow-up SLA updated successfully.";
   }
 
   if (followUpWasCompleted) {

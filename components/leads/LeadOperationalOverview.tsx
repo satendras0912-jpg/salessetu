@@ -23,6 +23,8 @@ import CancelFollowUpForm from "@/components/leads/CancelFollowUpForm";
 
 import DeleteFollowUpForm from "@/components/leads/DeleteFollowUpForm";
 
+import ManageFollowUpSlaForm from "@/components/leads/ManageFollowUpSlaForm";
+
 import type {
   LeadOperationalAccess,
 } from "@/types/lead-operational-access";
@@ -652,6 +654,16 @@ export default function LeadOperationalOverview({
                 label="Cancel"
                 allowed={access.canUpdateFollowUp}
               />
+
+              <ActionBadge
+                label="SLA"
+                allowed={access.canManageFollowUpSla}
+              />
+
+              <ActionBadge
+                label="Delete"
+                allowed={access.canDeleteFollowUp}
+              />
             </div>
           </header>
 
@@ -783,6 +795,32 @@ export default function LeadOperationalOverview({
                       </div>
                     </dl>
 
+                    <div className="mt-4 grid gap-4 rounded-xl border border-violet-900/50 bg-violet-950/20 p-4 text-sm sm:grid-cols-2">
+  <div>
+    <p className="text-xs uppercase tracking-wider text-slate-500">
+      SLA status
+    </p>
+
+    <p className="mt-1 font-medium text-violet-200">
+      {formatOperationalLabel(
+        task.slaStatus,
+      )}
+    </p>
+  </div>
+
+  <div>
+    <p className="text-xs uppercase tracking-wider text-slate-500">
+      SLA deadline
+    </p>
+
+    <p className="mt-1 font-medium text-slate-200">
+      {formatDateTime(
+        task.slaDueAt,
+      )}
+    </p>
+  </div>
+</div>
+
                     {task.completionOutcome ? (
                       <div className="mt-4 rounded-xl border border-emerald-900/60 bg-emerald-950/20 p-4">
                         <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
@@ -837,6 +875,16 @@ export default function LeadOperationalOverview({
                             </div>
                           ) : null}
                       </div>
+                    ) : null}
+
+                    {access.canManageFollowUpSla &&
+                      !terminalTask ? (
+                        <div className="mt-5">
+                          <ManageFollowUpSlaForm
+                            key={`sla-${task.id}-${task.updatedAt}`}
+                            task={task}
+                          />
+                        </div>
                     ) : null}
 
                     {access.canDeleteFollowUp ? (
@@ -926,11 +974,6 @@ export default function LeadOperationalOverview({
               access.canCancelSiteVisit
             }
           />
-
-              <ActionBadge
-                label="Delete"
-                allowed={access.canDeleteFollowUp}
-              />
         </div>
       </header>
 

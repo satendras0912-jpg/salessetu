@@ -26,6 +26,7 @@ export type LeadOperationalAccess =
     canAssignFollowUp: boolean;
     canCompleteFollowUp: boolean;
     canDeleteFollowUp: boolean;
+    canManageFollowUpSla: boolean;
 
     canCreateSiteVisit: boolean;
     canUpdateSiteVisit: boolean;
