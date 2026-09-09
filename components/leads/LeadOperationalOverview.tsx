@@ -25,6 +25,8 @@ import DeleteFollowUpForm from "@/components/leads/DeleteFollowUpForm";
 
 import ManageFollowUpSlaForm from "@/components/leads/ManageFollowUpSlaForm";
 
+import EscalateFollowUpForm from "@/components/leads/EscalateFollowUpForm";
+
 import type {
   LeadOperationalAccess,
 } from "@/types/lead-operational-access";
@@ -510,6 +512,13 @@ export default function LeadOperationalOverview({
               />
 
               <ActionBadge
+                label="Escalate"
+                allowed={
+                  access.canEscalateFollowUp
+                }
+              />
+
+              <ActionBadge
                 label="Complete"
                 allowed={access.canCompleteFollowUp}
               />
@@ -641,6 +650,13 @@ export default function LeadOperationalOverview({
               />
 
               <ActionBadge
+                label="Escalate"
+                allowed={
+                  access.canEscalateFollowUp
+                }
+              />
+
+              <ActionBadge
                 label="Reschedule"
                 allowed={access.canUpdateFollowUp}
               />
@@ -688,6 +704,15 @@ export default function LeadOperationalOverview({
                           member.userId ===
                           task.assignedTo,
                       ) ?? null
+                    : null;
+
+                const taskEscalatedMember =
+                  task.escalatedTo
+                    ? members.find(
+                      (member) =>
+                        member.userId ===
+                        task.escalatedTo,
+                    ) ?? null
                     : null;
 
                 const terminalTask =
@@ -791,6 +816,27 @@ export default function LeadOperationalOverview({
                         <dd className="mt-1 font-medium text-slate-200">
                           Level{" "}
                           {task.escalationLevel}
+
+                          {task.escalatedTo ? (
+                            <span className="mt-1 block text-xs font-normal text-orange-200">
+                              To{" "}
+                              {taskEscalatedMember
+                                ?.displayName ??
+                                task.escalatedTo}
+                            </span>
+                          ) : (
+                              <span className="mt-1 block text-xs font-normal text-slate-500">
+                                Not escalated
+                              </span>
+                          )}
+
+                          {task.escalatedAt ? (
+                            <span className="mt-1 block text-xs font-normal text-slate-500">
+                              {formatDateTime(
+                                task.escalatedAt,
+                              )}
+                            </span>
+                          ) : null}
                         </dd>
                       </div>
                     </dl>
@@ -841,6 +887,7 @@ export default function LeadOperationalOverview({
 
                     {!terminalTask &&
                     (access.canAssignFollowUp ||
+                      access.canEscalateFollowUp ||
                       access.canUpdateFollowUp ||
                         access.canCompleteFollowUp) ? (
                       <div className="mt-5 grid gap-4 xl:grid-cols-3">
@@ -851,6 +898,14 @@ export default function LeadOperationalOverview({
                             members={members}
                           />
                         ) : null}
+
+                          {access.canEscalateFollowUp ? (
+                            <EscalateFollowUpForm
+                              key={`escalate-${task.id}-${task.updatedAt}`}
+                              task={task}
+                              members={members}
+                            />
+                          ) : null}
 
                         {access.canUpdateFollowUp ? (
                             <RescheduleFollowUpForm

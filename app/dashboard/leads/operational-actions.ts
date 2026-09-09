@@ -12,6 +12,7 @@ import {
 
 import {
   assignFollowUpTask,
+  escalateFollowUpTask,
   completeFollowUpTask,
   createFollowUpTask,
   rescheduleFollowUpTask,
@@ -59,6 +60,7 @@ import {
 
 import type {
   AssignFollowUpValues,
+  EscalateFollowUpValues,
   CompleteFollowUpValues,
   CreateFollowUpValues,
   CancelFollowUpValues,
@@ -140,6 +142,17 @@ type AssignFollowUpParseResult =
   | {
       success: true;
       values: AssignFollowUpValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: OperationalFieldErrors;
+    };
+
+    type EscalateFollowUpParseResult =
+  | {
+      success: true;
+      values: EscalateFollowUpValues;
     }
   | {
       success: false;
@@ -1137,6 +1150,139 @@ function parseAssignFollowUpForm(
       taskId,
       expectedUpdatedAt,
       assignedTo,
+      reason,
+    },
+  };
+}
+
+function parseEscalateFollowUpForm(
+  formData: FormData,
+): EscalateFollowUpParseResult {
+  const fieldErrors:
+    OperationalFieldErrors = {};
+
+  const taskId =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "taskId",
+      ),
+    );
+
+  const expectedUpdatedAt =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "expectedUpdatedAt",
+      ),
+    );
+
+  const escalatedTo =
+    normalizeSingleLine(
+      getFormString(
+        formData,
+        "escalatedTo",
+      ),
+    );
+
+  const reason =
+    normalizeMultiline(
+      getFormString(
+        formData,
+        "reason",
+      ),
+    );
+
+  if (!taskId) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "Follow-up task ID is required.",
+    );
+  } else if (
+    !UUID_PATTERN.test(taskId)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "taskId",
+      "The follow-up task ID is invalid.",
+    );
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original update timestamp is required.",
+    );
+  } else {
+    const parsedTimestamp =
+      new Date(expectedUpdatedAt);
+
+    if (
+      Number.isNaN(
+        parsedTimestamp.getTime(),
+      )
+    ) {
+      addFieldError(
+        fieldErrors,
+        "expectedUpdatedAt",
+        "The original update timestamp is invalid.",
+      );
+    }
+  }
+
+  if (!escalatedTo) {
+    addFieldError(
+      fieldErrors,
+      "escalatedTo",
+      "Select an organization member for escalation.",
+    );
+  } else if (
+    !UUID_PATTERN.test(escalatedTo)
+  ) {
+    addFieldError(
+      fieldErrors,
+      "escalatedTo",
+      "The selected escalation member is invalid.",
+    );
+  }
+
+  if (!reason) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      "Enter a reason for escalating this follow-up.",
+    );
+  } else if (
+    reason.length >
+    OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    addFieldError(
+      fieldErrors,
+      "reason",
+      `Reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  if (
+    hasFieldErrors(fieldErrors)
+  ) {
+    return {
+      success: false,
+      message:
+        "Please correct the highlighted follow-up escalation fields.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+
+    values: {
+      taskId,
+      expectedUpdatedAt,
+      escalatedTo,
       reason,
     },
   };
@@ -3207,6 +3353,7 @@ function mapFollowUpFailure(
   operation:
     | "create"
     | "assign"
+    | "escalate"
     | "complete"
     | "reschedule"
     | "cancel"
@@ -3242,14 +3389,20 @@ function mapFollowUpFailure(
             },
       );
 
-    case "invalid_assignee":
+        case "invalid_assignee":
       return createErrorState(
         result.message,
-        {
-          assignedTo: [
-            result.message,
-          ],
-        },
+        operation === "escalate"
+          ? {
+              escalatedTo: [
+                result.message,
+              ],
+            }
+          : {
+              assignedTo: [
+                result.message,
+              ],
+            },
       );
 
     case "validation":
@@ -3763,6 +3916,77 @@ export async function assignFollowUpAction(
 
   redirect(
     `/dashboard/leads/${result.leadId}?followUpAssigned=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function escalateFollowUpAction(
+  previousState:
+    OperationalActionState,
+
+  formData: FormData,
+): Promise<OperationalActionState> {
+  void previousState;
+
+  const parsed =
+    parseEscalateFollowUpForm(
+      formData,
+    );
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors:
+        parsed.fieldErrors,
+    };
+  }
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        LEAD_OPERATIONAL_PERMISSIONS
+          .viewLeads,
+
+        LEAD_OPERATIONAL_PERMISSIONS
+          .assignFollowUp,
+      ],
+
+      loginRedirectTo:
+        "/login?next=/dashboard/leads",
+
+      unauthorizedRedirectTo:
+        "/unauthorized",
+    });
+
+  const organizationId =
+    context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to escalate a follow-up.",
+    );
+  }
+
+  const result =
+    await escalateFollowUpTask(
+      organizationId,
+      parsed.values,
+    );
+
+  if (!result.ok) {
+    return mapFollowUpFailure(
+      result,
+      "escalate",
+    );
+  }
+
+  revalidateLeadOperationalPaths(
+    result.leadId,
+  );
+
+  redirect(
+    `/dashboard/leads/${result.leadId}?followUpEscalated=1`,
     RedirectType.replace,
   );
 }
