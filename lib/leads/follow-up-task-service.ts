@@ -11,6 +11,7 @@ import {
 
 import type {
   AssignFollowUpValues,
+  EscalateFollowUpValues,
   CompleteFollowUpValues,
   CreateFollowUpValues,
   RescheduleFollowUpValues,
@@ -73,6 +74,7 @@ export type FollowUpTaskServiceResult =
 type FollowUpOperation =
   | "create"
   | "assign"
+  | "escalate"
   | "complete"
   | "reschedule"
   | "cancel"
@@ -201,6 +203,9 @@ function getDefaultOperationMessage(
     case "assign":
       return "The follow-up task could not be assigned.";
 
+    case "escalate":
+      return "The follow-up task could not be escalated.";
+
     case "reschedule":
       return "The follow-up task could not be rescheduled.";
 
@@ -227,6 +232,9 @@ function getTimeoutMessage(
 
     case "assign":
       return "The request timed out. Reload the lead page to verify the latest follow-up assignment before trying again.";
+
+    case "escalate":
+      return "The request timed out. Reload the lead page to verify the latest follow-up escalation before trying again.";
 
     case "reschedule":
       return "The request timed out. Reload the lead page to verify the latest follow-up schedule before trying again.";
@@ -380,6 +388,9 @@ function mapDatabaseError(
     ) ||
     normalizedMessage.includes(
       "cannot be completed",
+    ) ||
+    normalizedMessage.includes(
+      "terminal follow-up task cannot be escalated",
     ) ||
     normalizedMessage.includes(
       "invalid status",
@@ -977,6 +988,145 @@ export async function assignFollowUpTask(
       code: "database_error",
       message:
         "The follow-up assignment may have changed, but its response could not be verified. Reload the lead page before trying again.",
+    };
+  }
+
+  return result;
+}
+
+export async function escalateFollowUpTask(
+  organizationId: string,
+  values: EscalateFollowUpValues,
+): Promise<FollowUpTaskServiceResult> {
+  const cleanOrganizationId =
+    normalizeRequiredUuid(
+      organizationId,
+      "Organization ID",
+    );
+
+  if (!cleanOrganizationId) {
+    return createValidationFailure(
+      "An active organization context is required to escalate a follow-up.",
+    );
+  }
+
+  const cleanTaskId =
+    normalizeRequiredUuid(
+      values.taskId,
+      "Follow-up task ID",
+    );
+
+  if (!cleanTaskId) {
+    return createValidationFailure(
+      "A valid follow-up task ID is required.",
+    );
+  }
+
+  const cleanEscalatedTo =
+    normalizeRequiredUuid(
+      values.escalatedTo,
+      "Escalation member ID",
+    );
+
+  if (!cleanEscalatedTo) {
+    return createValidationFailure(
+      "Select a valid organization member for escalation.",
+    );
+  }
+
+  /*
+   * Preserve the original PostgreSQL timestamp text so
+   * microsecond precision is not lost before the RPC call.
+   */
+  const cleanExpectedUpdatedAt =
+    values.expectedUpdatedAt.trim();
+
+  if (
+    !cleanExpectedUpdatedAt ||
+    Number.isNaN(
+      Date.parse(cleanExpectedUpdatedAt),
+    )
+  ) {
+    return createValidationFailure(
+      "The original follow-up update timestamp is invalid.",
+    );
+  }
+
+  const cleanReason =
+    values.reason
+      .replace(/\s+/g, " ")
+      .trim();
+
+  if (!cleanReason) {
+    return createValidationFailure(
+      "Enter a reason for escalating this follow-up.",
+    );
+  }
+
+  if (
+    cleanReason.length >
+    OPERATIONAL_FORM_LIMITS.reason
+  ) {
+    return createValidationFailure(
+      `Escalation reason must not exceed ${OPERATIONAL_FORM_LIMITS.reason} characters.`,
+    );
+  }
+
+  const supabase =
+    await createClient();
+
+  const scopedTaskResult =
+    await loadScopedFollowUpTask(
+      supabase,
+      cleanOrganizationId,
+      cleanTaskId,
+      "escalate",
+    );
+
+  if (!scopedTaskResult.ok) {
+    return scopedTaskResult.result;
+  }
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "escalate_follow_up_task",
+    {
+      requested_task_id:
+        cleanTaskId,
+
+      requested_escalated_to:
+        cleanEscalatedTo,
+
+      requested_reason:
+        cleanReason,
+
+      requested_expected_updated_at:
+        cleanExpectedUpdatedAt,
+    },
+  );
+
+  if (error) {
+    return mapDatabaseError(
+      error,
+      "escalate",
+    );
+  }
+
+  const result =
+    parseMutationResult(
+      data,
+      cleanTaskId,
+      scopedTaskResult.row.lead_id,
+    );
+
+  if (!result) {
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The follow-up escalation may have changed, but its response could not be verified. Reload the lead page before trying again.",
     };
   }
 

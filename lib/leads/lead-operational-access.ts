@@ -269,6 +269,14 @@ export function buildLeadOperationalAccess({
           .assignFollowUp,
       ),
 
+    canEscalateFollowUp:
+      hasAccess(
+        permissionCodes,
+        isOwner,
+        LEAD_OPERATIONAL_PERMISSIONS
+          .assignFollowUp,
+      ),
+
     canCompleteFollowUp:
       hasAccess(
         permissionCodes,

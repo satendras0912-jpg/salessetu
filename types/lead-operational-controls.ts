@@ -227,6 +227,14 @@ export type AssignFollowUpValues = {
   reason: string;
 };
 
+export type EscalateFollowUpValues = {
+  taskId: string;
+  expectedUpdatedAt: string;
+
+  escalatedTo: string;
+  reason: string;
+};
+
 export type RescheduleFollowUpValues = {
   taskId: string;
   expectedUpdatedAt: string;

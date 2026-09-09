@@ -180,6 +180,11 @@ function getSuccessMessage(
       searchParams.followUpAssigned,
     ) === "1";
 
+  const followUpWasEscalated =
+    getSingleValue(
+      searchParams.followUpEscalated,
+    ) === "1";
+
   const followUpWasRescheduled =
     getSingleValue(
       searchParams.followUpRescheduled,
@@ -231,6 +236,10 @@ function getSuccessMessage(
 
   if (followUpWasAssigned) {
     return "Follow-up assigned successfully.";
+  }
+
+  if (followUpWasEscalated) {
+    return "Follow-up escalated successfully.";
   }
 
   if (followUpWasRescheduled) {
