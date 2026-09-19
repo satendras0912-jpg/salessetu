@@ -788,40 +788,34 @@ export async function createFollowUpTask(
   const {
     data,
     error,
-  } = await supabase
-    .from("follow_up_tasks")
-    .insert({
-      organization_id:
-        cleanOrganizationId,
-
-      lead_id:
+  } = await supabase.rpc(
+    "create_follow_up_task",
+    {
+      requested_lead_id:
         cleanLeadId,
 
-      title:
+      requested_title:
         cleanTitle,
 
-      description:
+      requested_description:
         cleanDescription,
 
-      follow_up_type:
+      requested_follow_up_type:
         values.followUpType,
 
-      priority:
+      requested_priority:
         values.priority,
 
-      assigned_to:
+      requested_assigned_to:
         cleanAssignedTo,
 
-      due_at:
+      requested_due_at:
         cleanDueAt,
 
-      reminder_at:
+      requested_reminder_at:
         cleanReminderAt,
-    })
-    .select(
-      "id, lead_id, updated_at",
-    )
-    .single();
+    },
+  );
 
   if (error) {
     return mapDatabaseError(
