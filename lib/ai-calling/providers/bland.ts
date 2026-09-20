@@ -2,6 +2,8 @@ import "server-only";
 
 import type {
   AiCallProviderAdapter,
+  AnalyzeAiCallInput,
+  AnalyzeAiCallResult,
   DispatchAiCallInput,
   DispatchAiCallResult,
   JsonObject,
@@ -293,6 +295,165 @@ export class BlandAiProviderAdapter
 
     return {
       providerCallId,
+      providerResponse,
+    };
+  }
+
+    async analyzeCall(
+    input: AnalyzeAiCallInput,
+  ): Promise<AnalyzeAiCallResult> {
+    const providerCallId =
+      input.providerCallId.trim();
+
+    if (!providerCallId) {
+      throw new BlandAiProviderError(
+        "Bland AI call ID is required for analysis.",
+        null,
+        null,
+      );
+    }
+
+    if (!input.goal.trim()) {
+      throw new BlandAiProviderError(
+        "Bland AI analysis goal is required.",
+        null,
+        null,
+      );
+    }
+
+    if (input.questions.length === 0) {
+      throw new BlandAiProviderError(
+        "At least one analysis question is required.",
+        null,
+        null,
+      );
+    }
+
+    const controller =
+      new AbortController();
+
+    const timeoutId =
+      setTimeout(
+        () => controller.abort(),
+        this.requestTimeoutMs,
+      );
+
+    let response: Response;
+
+    try {
+      response = await fetch(
+        `${this.apiBaseUrl}/calls/${encodeURIComponent(
+          providerCallId,
+        )}/analyze`,
+        {
+          method: "POST",
+
+          headers: {
+            authorization:
+              `Bearer ${this.apiKey}`,
+
+            "content-type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            goal: input.goal.trim(),
+
+            questions:
+              input.questions.map(
+                (question) => [
+                  question.questionText,
+                  question.expectedAnswerType,
+                ],
+              ),
+          }),
+
+          cache: "no-store",
+
+          signal: controller.signal,
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.name === "AbortError"
+      ) {
+        throw new BlandAiProviderError(
+          "Bland AI did not respond before the analysis timeout.",
+          null,
+          null,
+        );
+      }
+
+      throw new BlandAiProviderError(
+        error instanceof Error
+          ? `Bland AI analysis request failed: ${error.message}`
+          : "Bland AI analysis request failed.",
+        null,
+        null,
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const rawBody =
+      await response.text();
+
+    const providerResponse =
+      parseProviderResponse(
+        rawBody,
+      );
+
+    const providerStatus =
+      readString(
+        providerResponse.status,
+      );
+
+    const answers =
+      Array.isArray(
+        providerResponse.answers,
+      )
+        ? providerResponse.answers
+        : [];
+
+    if (
+      !response.ok ||
+      providerStatus !== "success"
+    ) {
+      const providerMessage =
+        readString(
+          providerResponse.message,
+        );
+
+      throw new BlandAiProviderError(
+        providerMessage ||
+          `Bland AI rejected the analysis request with HTTP ${response.status}.`,
+        response.status,
+        providerResponse,
+      );
+    }
+
+    if (
+      answers.length !==
+      input.questions.length
+    ) {
+      throw new BlandAiProviderError(
+        "Bland AI returned an unexpected number of analysis answers.",
+        response.status,
+        providerResponse,
+      );
+    }
+
+    const creditsUsed =
+      typeof providerResponse
+        .credits_used === "number"
+        ? providerResponse
+            .credits_used
+        : null;
+
+    return {
+      answers,
+      creditsUsed,
       providerResponse,
     };
   }

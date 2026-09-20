@@ -7,6 +7,10 @@ import {
   resolveAiCallSecret,
 } from "@/lib/ai-calling/providers/factory";
 
+import {
+  processAiCallQualification,
+} from "@/lib/ai-calling/qualification-service";
+
 import type {
   JsonObject,
   JsonValue,
@@ -37,7 +41,11 @@ type RouteContext = {
 
 type ProviderConnection = {
   id: string;
+  provider_id: string;
   status: string;
+  credentials_reference:
+    | string
+    | null;
   webhook_secret_reference:
     | string
     | null;
@@ -292,11 +300,13 @@ export async function POST(
       "ai_call_provider_connections",
     )
     .select(
-      [
-        "id",
-        "status",
-        "webhook_secret_reference",
-      ].join(","),
+        [
+            "id",
+            "provider_id",
+            "status",
+            "credentials_reference",
+            "webhook_secret_reference",
+        ].join(","),
     )
     .eq(
       "id",
@@ -809,6 +819,44 @@ export async function POST(
           status: 500,
         },
       );
+    }
+  }
+
+    if (
+    terminalStatus === "completed" &&
+    (
+      rawTranscript ||
+      transcriptSegments.length > 0 ||
+      correctedTranscript.length > 0
+    )
+  ) {
+    try {
+      const qualificationResult =
+        await processAiCallQualification({
+          callAttemptId:
+            webhookEvent.call_attempt_id,
+
+          providerCallId,
+
+          providerConnectionId:
+            connection.id,
+        });
+
+      resultData.qualification_processing =
+        qualificationResult.processed
+          ? "processed"
+          : "skipped";
+
+      resultData.qualification_reason =
+        qualificationResult.reason;
+    } catch (error) {
+      resultData.qualification_processing =
+        "failed";
+
+      resultData.qualification_error =
+        error instanceof Error
+          ? error.message
+          : "Qualification processing failed.";
     }
   }
 

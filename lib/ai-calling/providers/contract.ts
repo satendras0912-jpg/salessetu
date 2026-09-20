@@ -33,10 +33,32 @@ export type DispatchAiCallResult = {
   providerResponse: JsonObject;
 };
 
+export type AnalyzeAiCallQuestion = {
+  questionCode: string;
+  questionText: string;
+  expectedAnswerType: string;
+};
+
+export type AnalyzeAiCallInput = {
+  providerCallId: string;
+  goal: string;
+  questions: AnalyzeAiCallQuestion[];
+};
+
+export type AnalyzeAiCallResult = {
+  answers: JsonValue[];
+  creditsUsed: number | null;
+  providerResponse: JsonObject;
+};
+
 export interface AiCallProviderAdapter {
   readonly providerCode: string;
 
   dispatchCall(
     input: DispatchAiCallInput,
   ): Promise<DispatchAiCallResult>;
+
+  analyzeCall(
+    input: AnalyzeAiCallInput,
+  ): Promise<AnalyzeAiCallResult>;
 }
