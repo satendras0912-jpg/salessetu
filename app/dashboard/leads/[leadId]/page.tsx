@@ -1,9 +1,14 @@
 import {
+  randomUUID,
+} from "node:crypto";
+
+import {
   notFound,
   redirect,
 } from "next/navigation";
 
 import LeadDetailView from "@/components/leads/LeadDetailView";
+import LeadAiCallDispatchCard from "@/components/leads/LeadAiCallDispatchCard";
 import LeadAiCallHistoryCard from "@/components/leads/LeadAiCallHistoryCard";
 import LeadAiQualificationCard from "@/components/leads/LeadAiQualificationCard";
 import LeadOperationalOverview from "@/components/leads/LeadOperationalOverview";
@@ -406,6 +411,13 @@ export default async function LeadDetailPage({
       LEAD_FORM_PERMISSIONS.update,
     );
 
+  const canQueueAiCall =
+    isOwner ||
+    hasPermission(
+      permissionCodes,
+      "ai_calling.execute",
+    );
+
   const detailAccess =
     buildLeadDetailAccess(
       permissionCodes,
@@ -593,6 +605,16 @@ export default async function LeadDetailPage({
           calls={lead.aiCalls}
         />
       ) : null}
+
+      <LeadAiCallDispatchCard
+        leadId={lead.id}
+        requestToken={randomUUID()}
+        canQueueAiCall={canQueueAiCall}
+        hasCallablePhone={Boolean(
+          lead.normalizedPhone?.trim() ||
+          lead.phone?.trim(),
+        )}
+      />
 
       <LeadOperationalOverview
         context={operationalContext}
