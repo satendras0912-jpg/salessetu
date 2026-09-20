@@ -4,6 +4,7 @@ import {
 } from "next/navigation";
 
 import LeadDetailView from "@/components/leads/LeadDetailView";
+import LeadAiQualificationCard from "@/components/leads/LeadAiQualificationCard";
 import LeadOperationalOverview from "@/components/leads/LeadOperationalOverview";
 
 import {
@@ -22,6 +23,10 @@ import {
 import {
   getLeadDetail,
 } from "@/lib/leads/lead-detail-service";
+
+import {
+  getLeadAiQualification,
+} from "@/lib/ai-calling/qualification-display-service";
 
 import {
   getLeadOperationalContext,
@@ -429,9 +434,10 @@ export default async function LeadDetailPage({
     ) => Promise<LeadDetailRecord | null>;
 
   const [
-    lead,
-    operationalContext,
-  ] = await Promise.all([
+  lead,
+  operationalContext,
+  aiQualification,
+] = await Promise.all([
     loadLeadDetail(
       organizationId,
       cleanLeadId,
@@ -442,6 +448,11 @@ export default async function LeadDetailPage({
       organizationId,
       cleanLeadId,
       operationalDataAccess,
+    ),
+
+    getLeadAiQualification(
+      organizationId,
+      cleanLeadId,
     ),
   ]);
 
@@ -562,6 +573,10 @@ export default async function LeadDetailPage({
         currentAssignment={
           leadDetailAssignment
         }
+      />
+
+      <LeadAiQualificationCard
+        qualification={aiQualification}
       />
 
       <LeadOperationalOverview
