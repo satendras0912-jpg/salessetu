@@ -4,6 +4,7 @@ import {
 } from "next/navigation";
 
 import LeadDetailView from "@/components/leads/LeadDetailView";
+import LeadAiCallHistoryCard from "@/components/leads/LeadAiCallHistoryCard";
 import LeadAiQualificationCard from "@/components/leads/LeadAiQualificationCard";
 import LeadOperationalOverview from "@/components/leads/LeadOperationalOverview";
 
@@ -128,11 +129,19 @@ function buildLeadDetailAccess(
       "leads.site_visits.view",
     ]);
 
+  const canViewAiCalls =
+    isOwner ||
+    hasAnyPermission(permissionCodes, [
+      "ai_calling.view",
+      "ai_calling.view_all",
+    ]);
+
   return {
     canViewActivities,
     canViewStatusHistory,
     canViewFollowUps,
     canViewSiteVisits,
+    canViewAiCalls,
 
     viewActivities: canViewActivities,
     viewStatusHistory:
@@ -578,6 +587,12 @@ export default async function LeadDetailPage({
       <LeadAiQualificationCard
         qualification={aiQualification}
       />
+
+      {detailAccess.canViewAiCalls ? (
+        <LeadAiCallHistoryCard
+          calls={lead.aiCalls}
+        />
+      ) : null}
 
       <LeadOperationalOverview
         context={operationalContext}
