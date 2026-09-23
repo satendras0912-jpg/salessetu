@@ -4,7 +4,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 import {
   createAiCallProvider,
+  resolveAiCallSecret,
 } from "./providers/factory";
+
+import {
+  createBlandWebhookToken,
+} from "./webhook-signature";
 
 import type {
   JsonObject,
@@ -29,6 +34,7 @@ type ProviderConnection = {
   provider_id: string;
   status: string;
   credentials_reference: string | null;
+  webhook_secret_reference: string | null;
   outbound_phone_number: string | null;
   default_voice_id: string | null;
   default_language_code: string;
@@ -158,6 +164,7 @@ function getErrorMessage(
 function buildWebhookUrl(
   baseUrl: string,
   connectionId: string,
+  webhookToken: string,
 ) {
   const cleanBaseUrl =
     baseUrl.trim();
@@ -168,10 +175,18 @@ function buildWebhookUrl(
     );
   }
 
-  return new URL(
-    `/api/ai-calling/webhooks/bland/${connectionId}`,
-    cleanBaseUrl,
-  ).toString();
+  const webhookUrl =
+    new URL(
+      `/api/ai-calling/webhooks/bland/${connectionId}`,
+      cleanBaseUrl,
+    );
+
+  webhookUrl.searchParams.set(
+    "token",
+    webhookToken,
+  );
+
+  return webhookUrl.toString();
 }
 
 export async function dispatchNextAiCall(
@@ -239,6 +254,7 @@ export async function dispatchNextAiCall(
             "provider_id",
             "status",
             "credentials_reference",
+            "webhook_secret_reference",
             "outbound_phone_number",
             "default_voice_id",
             "default_language_code",
@@ -391,10 +407,23 @@ export async function dispatchNextAiCall(
         variables,
       );
 
+        const webhookSecret =
+      resolveAiCallSecret(
+        connection
+          .webhook_secret_reference,
+      );
+
+    const webhookToken =
+      createBlandWebhookToken(
+        connection.id,
+        webhookSecret,
+      );
+
     const webhookUrl =
       buildWebhookUrl(
         input.webhookBaseUrl,
         connection.id,
+        webhookToken,
       );
 
     const providerRequest: JsonObject = {

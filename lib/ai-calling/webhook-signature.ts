@@ -84,3 +84,65 @@ export function verifyBlandWebhookSignature(
     expectedBuffer,
   );
 }
+
+export function createBlandWebhookToken(
+  connectionId: string,
+  webhookSecret: string,
+) {
+  return createHmac(
+    "sha256",
+    webhookSecret,
+  )
+    .update(
+      `bland-webhook:${connectionId}`,
+    )
+    .digest("hex");
+}
+
+export function verifyBlandWebhookToken(
+  connectionId: string,
+  providedToken: string | null,
+  webhookSecret: string,
+) {
+  if (
+    !providedToken ||
+    !webhookSecret
+  ) {
+    return false;
+  }
+
+  const cleanToken =
+    providedToken.trim();
+
+  if (
+    !SHA256_HEX_PATTERN.test(
+      cleanToken,
+    )
+  ) {
+    return false;
+  }
+
+  const expectedToken =
+    createBlandWebhookToken(
+      connectionId,
+      webhookSecret,
+    );
+
+  const providedBuffer =
+    Buffer.from(cleanToken, "hex");
+
+  const expectedBuffer =
+    Buffer.from(expectedToken, "hex");
+
+  if (
+    providedBuffer.length !==
+    expectedBuffer.length
+  ) {
+    return false;
+  }
+
+  return timingSafeEqual(
+    providedBuffer,
+    expectedBuffer,
+  );
+}

@@ -18,6 +18,7 @@ import type {
 
 import {
   verifyBlandWebhookSignature,
+  verifyBlandWebhookToken,
 } from "@/lib/ai-calling/webhook-signature";
 
 import {
@@ -369,7 +370,7 @@ export async function POST(
     );
   }
 
-  const signature =
+    const signature =
     request.headers.get(
       "x-webhook-signature",
     );
@@ -381,7 +382,22 @@ export async function POST(
       webhookSecret,
     );
 
-  if (!signatureValid) {
+  const webhookToken =
+    request.nextUrl.searchParams.get(
+      "token",
+    );
+
+  const tokenValid =
+    verifyBlandWebhookToken(
+      connectionId,
+      webhookToken,
+      webhookSecret,
+    );
+
+  if (
+    !signatureValid &&
+    !tokenValid
+  ) {
     return NextResponse.json(
       {
         ok: false,
