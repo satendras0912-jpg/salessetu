@@ -18,6 +18,10 @@ import {
   LEAD_OPERATIONAL_PERMISSIONS,
 } from "@/lib/leads/lead-operational-contract";
 
+import {
+  createClient,
+} from "@/lib/supabase/server";
+
 export type QueueAiCallActionState = {
   status: "idle" | "error";
   message: string | null;
@@ -41,6 +45,120 @@ function readFormValue(
   return typeof value === "string"
     ? value.trim()
     : "";
+}
+
+export type RegisterAiCallConsentState = {
+  status: "idle" | "error" | "success";
+  message: string | null;
+};
+
+export async function registerLeadAiCallConsentAction(
+  previousState: RegisterAiCallConsentState,
+  formData: FormData,
+): Promise<RegisterAiCallConsentState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    allOf: [
+      LEAD_OPERATIONAL_PERMISSIONS.viewLeads,
+      "ai_calling.manage_consent",
+    ],
+    loginRedirectTo: "/login?next=/dashboard/leads",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  const organizationId = context.organization?.id?.trim();
+  const leadId = readFormValue(formData, "leadId");
+  const confirmation = readFormValue(formData, "consentConfirmation");
+  const source = readFormValue(formData, "consentSource");
+  const evidence = readFormValue(formData, "consentEvidence");
+
+  if (!organizationId || !UUID_PATTERN.test(leadId)) {
+    return {
+      status: "error",
+      message: "A valid lead and active organization are required.",
+    };
+  }
+
+  if (confirmation !== "confirmed") {
+    return {
+      status: "error",
+      message: "Confirm that the recipient actually granted AI-call consent.",
+    };
+  }
+
+  if (!["lead_form", "website", "whatsapp", "verbal", "written"].includes(source)) {
+    return {
+      status: "error",
+      message: "Select how consent was received.",
+    };
+  }
+
+  if (evidence.length < 10 || evidence.length > 2000) {
+    return {
+      status: "error",
+      message: "Describe when and how consent was received (10–2000 characters).",
+    };
+  }
+
+  const supabase = await createClient();
+
+  const { data: lead, error: leadError } = await supabase
+    .from("leads")
+    .select("id, phone, normalized_phone")
+    .eq("id", leadId)
+    .eq("organization_id", organizationId)
+    .single();
+
+  if (leadError || !lead) {
+    return {
+      status: "error",
+      message: "The selected lead could not be loaded.",
+    };
+  }
+
+  const phoneNumber =
+    lead.normalized_phone?.trim() || lead.phone?.trim();
+
+  if (!phoneNumber) {
+    return {
+      status: "error",
+      message: "This lead does not have a callable phone number.",
+    };
+  }
+
+  const { error } = await supabase.rpc(
+    "register_ai_call_consent",
+    {
+      requested_organization_id: organizationId,
+      requested_phone_number: phoneNumber,
+      requested_consent_status: "granted",
+      requested_lead_id: leadId,
+      requested_consent_type: "outbound_ai_call",
+      requested_consent_source: source,
+      requested_consent_text: evidence,
+      requested_evidence_data: {
+        captured_via: "lead_detail_consent_form",
+        operator_attested: true,
+        attestation_version: "outbound-ai-call-v1",
+      },
+    },
+  );
+
+  if (error) {
+    return {
+      status: "error",
+      message: `Unable to save AI-call consent: ${error.message}`,
+    };
+  }
+
+  revalidatePath(`/dashboard/leads/${leadId}`);
+
+  return {
+    status: "success",
+    message:
+      "AI-call consent recorded. No call was queued. Existing blocked jobs remain unchanged.",
+  };
 }
 
 export async function queueLeadAiCallAction(
