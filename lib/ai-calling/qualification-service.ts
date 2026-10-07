@@ -17,7 +17,6 @@ type ProcessQualificationInput = {
   callAttemptId: string;
   providerCallId: string;
   providerConnectionId: string;
-  forceReprocess?: boolean;
 };
 
 type CallAttempt = {
@@ -174,7 +173,7 @@ export async function processAiCallQualification(
     );
   }
 
-  if (existingResult && !input.forceReprocess) {
+  if (existingResult) {
     return {
       processed: false,
       skipped: true,
