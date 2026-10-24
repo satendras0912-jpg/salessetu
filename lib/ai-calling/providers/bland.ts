@@ -178,8 +178,16 @@ export class BlandAiProviderAdapter
           input.languageCode,
         ),
 
-      max_duration:
-        input.maximumDurationSeconds,
+            max_duration:
+        Math.max(
+          1,
+          Math.ceil(input.maximumDurationSeconds / 60),
+        ),
+
+      // Temporary diagnostic setting for the test call.
+      voicemail: {
+        action: "ignore",
+      },
 
       record:
         input.recordCall,
