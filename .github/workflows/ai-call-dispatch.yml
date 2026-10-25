@@ -1,0 +1,31 @@
+name: AI call dispatch pilot
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '3-58/5 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: ai-call-dispatch-pilot
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    if: vars.AI_CALL_AUTO_DISPATCH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Dispatch one eligible queued job
+        env:
+          AI_CALL_AUTO_DISPATCH_ENABLED: ${{ vars.AI_CALL_AUTO_DISPATCH_ENABLED }}
+          AI_CALL_DISPATCH_ORGANIZATION_ID: ${{ vars.AI_CALL_DISPATCH_ORGANIZATION_ID }}
+          AI_CALL_TIMEZONE: ${{ vars.AI_CALL_TIMEZONE }}
+          AI_CALL_WINDOW_START_HOUR: ${{ vars.AI_CALL_WINDOW_START_HOUR }}
+          AI_CALL_WINDOW_END_HOUR: ${{ vars.AI_CALL_WINDOW_END_HOUR }}
+          AI_CALL_DISPATCH_SECRET: ${{ secrets.AI_CALL_DISPATCH_SECRET }}
+        run: node scripts/ai-calling/dispatch-once.mjs
