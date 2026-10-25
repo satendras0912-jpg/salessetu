@@ -254,7 +254,8 @@ export async function POST(
       });
 
     if (
-      result.status === "failed"
+      result.status === "failed" ||
+      result.status === "reconciliation_required"
     ) {
       return NextResponse.json(
         {

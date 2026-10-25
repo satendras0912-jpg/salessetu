@@ -50,3 +50,14 @@ test('no retry or sensitive output on timeout or HTTP rejection', async () => {
 test('rejects misleading success payloads', async () => {
   await assert.rejects(dispatchOnce(env, async () => ({ status: 200, json: async () => ({ ok: false, result: { status: 'initiated' } }) }), noon));
 });
+
+test('blocked job is a successful no-call outcome', async () => {
+  const env = {
+    AI_CALL_AUTO_DISPATCH_ENABLED: 'true',
+    AI_CALL_DISPATCH_ORGANIZATION_ID: '00000000-0000-4000-8000-000000000001',
+    AI_CALL_DISPATCH_SECRET: 'x'.repeat(32),
+    AI_CALL_TIMEZONE: 'UTC', AI_CALL_WINDOW_START_HOUR: '0', AI_CALL_WINDOW_END_HOUR: '24',
+  };
+  const result = await dispatchOnce(env, async () => ({status:200, json:async () => ({ok:true,result:{status:'blocked'}})}));
+  assert.equal(result.status,'blocked');
+});

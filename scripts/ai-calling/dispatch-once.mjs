@@ -38,8 +38,8 @@ export async function dispatchOnce(env, fetcher = fetch, now = new Date()) {
     throw new Error('Dispatch outcome is uncertain or rejected. Pause scheduling and inspect server/job logs before retrying.');
   }
   const status = payload?.result?.status;
-  if (payload?.ok !== true || !['empty', 'initiated'].includes(status) ||
-      (status === 'empty' && response.status !== 200) ||
+  if (payload?.ok !== true || !['empty', 'blocked', 'initiated'].includes(status) ||
+      (['empty', 'blocked'].includes(status) && response.status !== 200) ||
       (status === 'initiated' && response.status !== 202)) {
     throw new Error('Unexpected dispatch response. Inspect job state before retrying.');
   }
