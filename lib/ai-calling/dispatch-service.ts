@@ -84,7 +84,7 @@ export type DispatchNextAiCallResult =
       providerCallId: string;
     }
   | {
-      status: "failed";
+      status: "failed" | "blocked" | "reconciliation_required";
       jobId: string;
       attemptId: string | null;
       message: string;
@@ -151,14 +151,6 @@ function buildTask(
         Boolean(section),
     )
     .join("\n\n");
-}
-
-function getErrorMessage(
-  error: unknown,
-) {
-  return error instanceof Error
-    ? error.message
-    : "Unknown AI calling dispatch error.";
 }
 
 function buildWebhookUrl(
@@ -238,6 +230,8 @@ export async function dispatchNextAiCall(
 
   let attemptId: string | null =
     null;
+
+  let dispatchAuthorizationStarted = false;
 
   try {
     const [
@@ -494,6 +488,26 @@ export async function dispatchNextAiCall(
           provider.api_base_url,
       });
 
+    // The durable hold is committed before contacting the provider. If this RPC
+    // times out after committing, fail closed: never send or retry the request.
+    dispatchAuthorizationStarted = true;
+    const { data: authorization, error: authorizationError } = await admin.rpc(
+      "authorize_ai_call_dispatch",
+      { requested_call_attempt_id: attempt.id },
+    );
+    if (authorizationError || !authorization) {
+      throw new Error("Dispatch authorization could not be confirmed.");
+    }
+    if (authorization.authorized !== true) {
+      return {
+        status: authorization.reason === "INELIGIBLE"
+          ? "blocked" : "reconciliation_required",
+        jobId: job.id,
+        attemptId: attempt.id,
+        message: "Call was not sent. Review the job before retrying.",
+      };
+    }
+
     const dispatchResult =
       await adapter.dispatchCall({
         attemptId:
@@ -575,138 +589,17 @@ export async function dispatchNextAiCall(
       providerCallId:
         dispatchResult.providerCallId,
     };
-    } catch (error) {
-    let message =
-      getErrorMessage(error);
-
-    if (!attemptId) {
-      const {
-        data: existingAttemptData,
-        error: existingAttemptError,
-      } = await admin
-        .from("ai_call_attempts")
-        .select("id")
-        .eq(
-          "call_job_id",
-          job.id,
-        )
-        .eq(
-          "status",
-          "dispatching",
-        )
-        .order(
-          "attempt_number",
-          {
-            ascending: false,
-          },
-        )
-        .limit(1)
-        .maybeSingle();
-
-      if (
-        !existingAttemptError &&
-        existingAttemptData
-      ) {
-        const existingAttempt =
-          existingAttemptData as unknown as CallAttempt;
-
-        attemptId =
-          existingAttempt.id;
-      }
-    }
-
-    if (!attemptId) {
-      const {
-        data: fallbackAttemptData,
-        error: fallbackAttemptError,
-      } = await admin.rpc(
-        "start_ai_call_attempt",
-        {
-          requested_call_job_id:
-            job.id,
-
-          requested_provider_request: {
-            dispatch_failed_before_provider:
-              true,
-
-            worker_id:
-              workerId,
-          },
-
-          requested_from_phone_number:
-            null,
-        },
-      );
-
-      if (
-        !fallbackAttemptError &&
-        fallbackAttemptData
-      ) {
-        const fallbackAttempt =
-          fallbackAttemptData as unknown as CallAttempt;
-
-        attemptId =
-          fallbackAttempt.id;
-      } else if (fallbackAttemptError) {
-        message =
-          `${message} Attempt recovery failed: ${fallbackAttemptError.message}`;
-      }
-    }
-
-    if (attemptId) {
-      const {
-        error: completionError,
-      } = await admin.rpc(
-        "complete_ai_call_attempt",
-        {
-          requested_call_attempt_id:
-            attemptId,
-
-          requested_status:
-            "failed",
-
-          requested_disposition_code:
-            "provider_failure",
-
-          requested_call_duration_seconds:
-            null,
-
-          requested_recording_url:
-            null,
-
-          requested_provider_cost:
-            null,
-
-          requested_provider_currency:
-            null,
-
-          requested_result_data:
-            {},
-
-          requested_error_code:
-            "dispatch_failed",
-
-          requested_error_message:
-            message,
-
-          requested_error_data: {
-            worker_id:
-              workerId,
-          },
-        },
-      );
-
-      if (completionError) {
-        message =
-          `${message} Database failure recording also failed: ${completionError.message}`;
-      }
-    }
-
+  } catch {
+    // Never complete an ambiguous dispatch as "failed": completion schedules a
+    // retry, even when the provider has accepted the original call. Keep the
+    // durable hold (or pre-provider dispatching state) for operator review.
     return {
-      status: "failed",
+      status: dispatchAuthorizationStarted ? "reconciliation_required" : "failed",
       jobId: job.id,
       attemptId,
-      message,
+      message: dispatchAuthorizationStarted
+        ? "Dispatch outcome requires reconciliation. Do not redial this job."
+        : "Dispatch preparation failed. Review the job before retrying.",
     };
   }
 }
