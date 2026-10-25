@@ -79,6 +79,12 @@ export type LeadListItem = {
   qualificationScore: number | null;
   aiQualified: boolean;
 
+  aiQualification?: {
+    status: string;
+    score: number | null;
+    recommendedAction: string | null;
+  } | null;
+
   duplicateStatus: string;
   duplicateConfidence: number | null;
 

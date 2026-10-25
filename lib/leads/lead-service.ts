@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+
 import type {
   LeadAssignmentSummary,
   LeadListFilters,
@@ -152,7 +153,9 @@ const LEAD_SELECT = `
   updated_at
 `;
 
-function toNumber(value: number | string | null): number | null {
+function toNumber(
+  value: number | string | null,
+): number | null {
   if (value === null || value === "") {
     return null;
   }
@@ -172,7 +175,10 @@ function clampInteger(
     return fallback;
   }
 
-  return Math.min(Math.max(value as number, minimum), maximum);
+  return Math.min(
+    Math.max(value as number, minimum),
+    maximum,
+  );
 }
 
 function sanitiseSearchTerm(value: string): string {
@@ -190,15 +196,23 @@ function getDisplayName(row: LeadRow): string {
     return explicitName;
   }
 
-  const generatedName = [row.first_name, row.last_name]
-    .filter((part): part is string => Boolean(part?.trim()))
+  const generatedName = [
+    row.first_name,
+    row.last_name,
+  ]
+    .filter(
+      (part): part is string =>
+        Boolean(part?.trim()),
+    )
     .join(" ")
     .trim();
 
   return generatedName || "Unnamed Lead";
 }
 
-function mapSource(row: LeadSourceRow): LeadSourceSummary {
+function mapSource(
+  row: LeadSourceRow,
+): LeadSourceSummary {
   return {
     id: row.id,
     name: row.name,
@@ -208,13 +222,19 @@ function mapSource(row: LeadSourceRow): LeadSourceSummary {
   };
 }
 
-function mapValidation(row: ValidationRow): LeadValidationSummary {
+function mapValidation(
+  row: ValidationRow,
+): LeadValidationSummary {
   return {
     status: row.status,
     decision: row.decision,
     trustScore: toNumber(row.trust_score),
-    authenticityScore: toNumber(row.authenticity_score),
-    contactabilityScore: toNumber(row.contactability_score),
+    authenticityScore: toNumber(
+      row.authenticity_score,
+    ),
+    contactabilityScore: toNumber(
+      row.contactability_score,
+    ),
     fraudScore: toNumber(row.fraud_score),
     duplicateScore: toNumber(row.duplicate_score),
     spamScore: toNumber(row.spam_score),
@@ -253,8 +273,19 @@ export async function getLeadList(
 ): Promise<LeadListResult> {
   const supabase = await createClient();
 
-  const page = clampInteger(filters.page, 1, 100_000, 1);
-  const pageSize = clampInteger(filters.pageSize, 10, 100, 25);
+  const page = clampInteger(
+    filters.page,
+    1,
+    100_000,
+    1,
+  );
+
+  const pageSize = clampInteger(
+    filters.pageSize,
+    10,
+    100,
+    25,
+  );
 
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
@@ -266,7 +297,10 @@ export async function getLeadList(
       .from("lead_validation_latest_results")
       .select("lead_id")
       .eq("organization_id", organizationId)
-      .eq("decision", filters.validationDecision.trim());
+      .eq(
+        "decision",
+        filters.validationDecision.trim(),
+      );
 
     if (error) {
       throw new Error(
@@ -276,9 +310,16 @@ export async function getLeadList(
 
     validationLeadIds = Array.from(
       new Set(
-        ((data ?? []) as Array<{ lead_id: string | null }>)
+        (
+          (data ?? []) as Array<{
+            lead_id: string | null;
+          }>
+        )
           .map((row) => row.lead_id)
-          .filter((leadId): leadId is string => Boolean(leadId)),
+          .filter(
+            (leadId): leadId is string =>
+              Boolean(leadId),
+          ),
       ),
     );
 
@@ -304,7 +345,9 @@ export async function getLeadList(
       ascending: false,
     });
 
-  const search = sanitiseSearchTerm(filters.search ?? "");
+  const search = sanitiseSearchTerm(
+    filters.search ?? "",
+  );
 
   if (search) {
     query = query.or(
@@ -322,7 +365,10 @@ export async function getLeadList(
   }
 
   if (filters.status?.trim()) {
-    query = query.eq("lead_status", filters.status.trim());
+    query = query.eq(
+      "lead_status",
+      filters.status.trim(),
+    );
   }
 
   if (filters.assignmentStatus?.trim()) {
@@ -333,13 +379,17 @@ export async function getLeadList(
   }
 
   if (filters.sourceId?.trim()) {
-    query = query.eq("lead_source_id", filters.sourceId.trim());
+    query = query.eq(
+      "lead_source_id",
+      filters.sourceId.trim(),
+    );
   }
 
   if (validationLeadIds) {
     query = query.in("id", validationLeadIds);
   }
 
+  // Execute the lead query before using leadRows.
   const {
     data: leadData,
     error: leadError,
@@ -347,28 +397,88 @@ export async function getLeadList(
   } = await query.range(from, to);
 
   if (leadError) {
-    throw new Error(`Unable to load leads: ${leadError.message}`);
+    throw new Error(
+      `Unable to load leads: ${leadError.message}`,
+    );
   }
 
   const leadRows = (leadData ?? []) as LeadRow[];
+  const total = count ?? 0;
 
   if (leadRows.length === 0) {
     return {
       items: [],
-      total: count ?? 0,
+      total,
       page,
       pageSize,
-      totalPages: 0,
+      totalPages:
+        total === 0
+          ? 0
+          : Math.ceil(total / pageSize),
     };
   }
 
-  const leadIds = leadRows.map((lead) => lead.id);
+  const leadIds = leadRows.map(
+    (lead) => lead.id,
+  );
+
+  // Fetch the latest assessment for each lead on this page.
+  // The signed-in client preserves existing RLS permissions.
+  const aiQualificationEntries = await Promise.all(
+    leadIds.map(async (leadId) => {
+      const { data, error } = await supabase
+        .from("ai_call_qualification_results")
+        .select(
+          "id,status,normalized_score,recommended_action,created_at",
+        )
+        .eq("organization_id", organizationId)
+        .eq("lead_id", leadId)
+        .order("created_at", {
+          ascending: false,
+        })
+        .order("id", {
+          ascending: false,
+        })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(
+          `Unable to load AI qualification: ${error.message}`,
+        );
+      }
+
+      const assessment:
+        | NonNullable<
+            LeadListItem["aiQualification"]
+          >
+        | null = data
+        ? {
+            status: data.status,
+            score: toNumber(
+              data.normalized_score,
+            ),
+            recommendedAction:
+              data.recommended_action,
+          }
+        : null;
+
+      return [leadId, assessment] as const;
+    }),
+  );
+
+  const aiQualificationByLeadId = new Map(
+    aiQualificationEntries,
+  );
 
   const sourceIds = Array.from(
     new Set(
       leadRows
         .map((lead) => lead.lead_source_id)
-        .filter((sourceId): sourceId is string => Boolean(sourceId)),
+        .filter(
+          (sourceId): sourceId is string =>
+            Boolean(sourceId),
+        ),
     ),
   );
 
@@ -376,7 +486,9 @@ export async function getLeadList(
     sourceIds.length > 0
       ? supabase
           .from("lead_sources")
-          .select("id,name,code,source_type,provider")
+          .select(
+            "id,name,code,source_type,provider",
+          )
           .eq("organization_id", organizationId)
           .in("id", sourceIds)
       : Promise.resolve({
@@ -456,15 +568,29 @@ export async function getLeadList(
     );
   }
 
-  const sourceRows = (sourceResult.data ?? []) as LeadSourceRow[];
-  const validationRows = (validationResult.data ?? []) as ValidationRow[];
-  const assignmentRows = (assignmentResult.data ?? []) as AssignmentRow[];
+  const sourceRows = (
+    sourceResult.data ?? []
+  ) as LeadSourceRow[];
+
+  const validationRows = (
+    validationResult.data ?? []
+  ) as ValidationRow[];
+
+  const assignmentRows = (
+    assignmentResult.data ?? []
+  ) as AssignmentRow[];
 
   const agentProfileIds = Array.from(
     new Set(
       assignmentRows
-        .map((assignment) => assignment.agent_profile_id)
-        .filter((agentId): agentId is string => Boolean(agentId)),
+        .map(
+          (assignment) =>
+            assignment.agent_profile_id,
+        )
+        .filter(
+          (agentId): agentId is string =>
+            Boolean(agentId),
+        ),
     ),
   );
 
@@ -487,7 +613,9 @@ export async function getLeadList(
   }
 
   const sourceById = new Map(
-    sourceRows.map((source) => [source.id, source]),
+    sourceRows.map(
+      (source) => [source.id, source],
+    ),
   );
 
   const validationByLeadId = new Map(
@@ -505,90 +633,116 @@ export async function getLeadList(
   );
 
   const agentById = new Map(
-    agentRows.map((agent) => [agent.id, agent]),
+    agentRows.map(
+      (agent) => [agent.id, agent],
+    ),
   );
 
-  const items: LeadListItem[] = leadRows.map((lead) => {
-    const source = lead.lead_source_id
-      ? sourceById.get(lead.lead_source_id) ?? null
-      : null;
-
-    const validation =
-      validationByLeadId.get(lead.id) ?? null;
-
-    const assignment =
-      assignmentByLeadId.get(lead.id) ?? null;
-
-    const agent =
-      assignment?.agent_profile_id
-        ? agentById.get(assignment.agent_profile_id) ?? null
+  const items: LeadListItem[] = leadRows.map(
+    (lead) => {
+      const source = lead.lead_source_id
+        ? sourceById.get(
+            lead.lead_source_id,
+          ) ?? null
         : null;
 
-    return {
-      id: lead.id,
-      organizationId: lead.organization_id,
+      const validation =
+        validationByLeadId.get(lead.id) ?? null;
 
-      fullName: getDisplayName(lead),
-      firstName: lead.first_name,
-      lastName: lead.last_name,
+      const assignment =
+        assignmentByLeadId.get(lead.id) ?? null;
 
-      phone: lead.phone,
-      email: lead.email,
-      whatsappNumber: lead.whatsapp_number,
+      const agent =
+        assignment?.agent_profile_id
+          ? agentById.get(
+              assignment.agent_profile_id,
+            ) ?? null
+          : null;
 
-      leadStatus: lead.lead_status,
-      leadTemperature: lead.lead_temperature,
-      priority: lead.priority,
-      lifecycleStage: lead.lifecycle_stage,
+      return {
+        id: lead.id,
+        organizationId: lead.organization_id,
 
-      preferredProject: lead.preferred_project,
-      preferredLocation: lead.preferred_location,
-      preferredCity: lead.preferred_city,
-      propertyType: lead.property_type,
-      unitType: lead.unit_type,
+        fullName: getDisplayName(lead),
+        firstName: lead.first_name,
+        lastName: lead.last_name,
 
-      budgetMin: toNumber(lead.budget_min),
-      budgetMax: toNumber(lead.budget_max),
-      budgetCurrency: lead.budget_currency,
+        phone: lead.phone,
+        email: lead.email,
+        whatsappNumber: lead.whatsapp_number,
 
-      qualificationStatus: lead.qualification_status,
-      qualificationScore: toNumber(lead.qualification_score),
-      aiQualified: lead.ai_qualified,
+        leadStatus: lead.lead_status,
+        leadTemperature: lead.lead_temperature,
+        priority: lead.priority,
+        lifecycleStage: lead.lifecycle_stage,
 
-      duplicateStatus: lead.duplicate_status,
-      duplicateConfidence: toNumber(
-        lead.duplicate_confidence,
-      ),
+        preferredProject:
+          lead.preferred_project,
+        preferredLocation:
+          lead.preferred_location,
+        preferredCity: lead.preferred_city,
+        propertyType: lead.property_type,
+        unitType: lead.unit_type,
 
-      fakeStatus: lead.fake_status,
-      fakeScore: toNumber(lead.fake_score),
+        budgetMin: toNumber(lead.budget_min),
+        budgetMax: toNumber(lead.budget_max),
+        budgetCurrency: lead.budget_currency,
 
-      consentStatus: lead.consent_status,
+        qualificationStatus:
+          lead.qualification_status,
+        qualificationScore: toNumber(
+          lead.qualification_score,
+        ),
+        aiQualified: lead.ai_qualified,
 
-      campaignName: lead.campaign_name,
-      utmSource: lead.utm_source,
-      utmMedium: lead.utm_medium,
-      utmCampaign: lead.utm_campaign,
+        aiQualification:
+          aiQualificationByLeadId.get(
+            lead.id,
+          ) ?? null,
 
-      assignmentStatus: lead.assignment_status,
-      assignedTo: lead.assigned_to,
-      assignedAt: lead.assigned_at,
-      nextFollowUpAt: lead.next_follow_up_at,
+        duplicateStatus:
+          lead.duplicate_status,
+        duplicateConfidence: toNumber(
+          lead.duplicate_confidence,
+        ),
 
-      createdAt: lead.created_at,
-      updatedAt: lead.updated_at,
+        fakeStatus: lead.fake_status,
+        fakeScore: toNumber(lead.fake_score),
 
-      source: source ? mapSource(source) : null,
-      validation: validation
-        ? mapValidation(validation)
-        : null,
-      assignment: assignment
-        ? mapAssignment(assignment, agent)
-        : null,
-    };
-  });
+        consentStatus: lead.consent_status,
 
-  const total = count ?? 0;
+        campaignName: lead.campaign_name,
+        utmSource: lead.utm_source,
+        utmMedium: lead.utm_medium,
+        utmCampaign: lead.utm_campaign,
+
+        assignmentStatus:
+          lead.assignment_status,
+        assignedTo: lead.assigned_to,
+        assignedAt: lead.assigned_at,
+        nextFollowUpAt:
+          lead.next_follow_up_at,
+
+        createdAt: lead.created_at,
+        updatedAt: lead.updated_at,
+
+        source: source
+          ? mapSource(source)
+          : null,
+
+        validation: validation
+          ? mapValidation(validation)
+          : null,
+
+        assignment: assignment
+          ? mapAssignment(
+              assignment,
+              agent,
+            )
+          : null,
+      };
+    },
+  );
 
   return {
     items,
@@ -596,7 +750,9 @@ export async function getLeadList(
     page,
     pageSize,
     totalPages:
-      total === 0 ? 0 : Math.ceil(total / pageSize),
+      total === 0
+        ? 0
+        : Math.ceil(total / pageSize),
   };
 }
 
@@ -607,7 +763,9 @@ export async function getLeadSources(
 
   const { data, error } = await supabase
     .from("lead_sources")
-    .select("id,name,code,source_type,provider")
+    .select(
+      "id,name,code,source_type,provider",
+    )
     .eq("organization_id", organizationId)
     .eq("is_active", true)
     .order("name", {
@@ -620,5 +778,7 @@ export async function getLeadSources(
     );
   }
 
-  return ((data ?? []) as LeadSourceRow[]).map(mapSource);
+  return (
+    (data ?? []) as LeadSourceRow[]
+  ).map(mapSource);
 }

@@ -257,8 +257,36 @@ export default function LeadTable({
                     <div className="space-y-2">
                       <StatusBadge value={lead.leadStatus} />
 
+                                            {lead.aiQualification ? (
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-cyan-300">
+                            AI Qualification:{" "}
+                            {normaliseLabel(
+                              lead.aiQualification.status,
+                            )}
+                          </p>
+
+                          {lead.aiQualification.score !== null ? (
+                            <p className="text-xs text-slate-300">
+                              AI Score:{" "}
+                              {lead.aiQualification.score}/100
+                            </p>
+                          ) : null}
+
+                          {lead.aiQualification.recommendedAction ? (
+                            <p className="text-xs text-slate-400">
+                              Next action:{" "}
+                              {normaliseLabel(
+                                lead.aiQualification
+                                  .recommendedAction,
+                              )}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+
                       <p className="text-xs text-slate-500">
-                        Qualification:{" "}
+                        Lead qualification:{" "}
                         {normaliseLabel(
                           lead.qualificationStatus,
                         )}
@@ -266,7 +294,7 @@ export default function LeadTable({
 
                       {lead.qualificationScore !== null ? (
                         <p className="text-xs text-slate-500">
-                          Score: {lead.qualificationScore}
+                          Lead score: {lead.qualificationScore}
                         </p>
                       ) : null}
                     </div>
