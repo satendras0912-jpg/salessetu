@@ -145,6 +145,22 @@ function buildTask(
       : null,
   ];
 
+  // Apply after the template's closing instructions so ambiguous speech does
+  // not become an unsupported assumption that the recipient wants to stop.
+  sections.push([
+    "Conversation clarification and closing rules:",
+    "These rules take precedence over conflicting closing instructions above. Always respect an explicit refusal, stop request, do-not-call request, or request to end the call immediately.",
+    "An interruption, brief acknowledgement, unclear transcription, or short pause alone does not mean the customer is busy, uninterested, or wants to end the call. Never invent that intention.",
+    "When the customer interrupts, stop speaking, listen to their full response, and continue from the unanswered question. Do not restart the introduction.",
+    "Treat clear Hindi acknowledgements such as 'haan', 'haan ji', and 'ji' as acknowledgements in context, not as consent to a site visit or permission for another action. Do not silently reinterpret unrelated transcribed words as agreement.",
+    "If a response is unclear or seems unrelated, ask one short clarification in the conversation's language, then wait for the answer. Do not repeat 'Can you hear me?' when a meaningful answer was already received.",
+    "For a purchase timeline such as 'do se teen mahine' or 'दो से तीन महीने', retain the two-to-three-month range. If uncertain, ask 'Kya aapne do se teen mahine kaha?' rather than treating the response as silence.",
+    "Make at most two clarification attempts for the same unclear answer. If the customer is still responding but the answer remains unclear, leave that answer unknown and move to the next relevant question without guessing.",
+    "Before a normal qualification closing, ask the customer's preferred next step if it has not been answered: site visit, details first, or a callback. Ask one question at a time and wait. Do not assume a preference or promise an action that has not been arranged.",
+    "If there is genuinely no audible response after two brief connection checks with time to answer, politely explain that you cannot hear the customer and close. Do not claim they are busy, mark unanswered questions as answered, or promise an automatic callback.",
+    "Only use a normal thank-you closing after the customer has had a chance to answer the next-step question; explicit stop requests and genuine connection failure remain exceptions.",
+  ].join("\n"));
+
   return sections
     .filter(
       (section): section is string =>

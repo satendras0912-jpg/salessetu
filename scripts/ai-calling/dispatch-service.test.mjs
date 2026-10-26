@@ -9,6 +9,7 @@ const source = readFileSync(new URL('../../lib/ai-calling/dispatch-service.ts', 
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 function harness({ authorization = { authorized: true }, authorizeError, providerError, markError, preparationError, startError } = {}) {
   const operations = [];
+  const providerRequests = [];
   const admin = {
     async rpc(name) {
       operations.push(name);
@@ -21,7 +22,7 @@ function harness({ authorization = { authorized: true }, authorizeError, provide
     from(table) {
       const query = { select: () => query, eq: () => query, single: async () => ({
         data: table === 'ai_call_script_templates'
-          ? { status: 'active', system_prompt: 'Test', opening_message: 'Test', maximum_call_duration_seconds: 60 }
+          ? { status: 'active', system_prompt: 'Ask about {{contact_name}} requirements.', opening_message: 'Test', closing_prompt: 'Template closing.', maximum_call_duration_seconds: 60 }
           : { status: 'active', provider_code: 'bland_ai', default_language_code: 'hi-IN' },
         error: preparationError,
       }) };
@@ -35,16 +36,28 @@ function harness({ authorization = { authorized: true }, authorizeError, provide
     if (name.includes('webhook-signature')) return { createBlandWebhookToken: () => 'synthetic-token' };
     if (name.includes('providers/factory')) return {
       resolveAiCallSecret: () => 'synthetic-secret',
-      createAiCallProvider: () => ({ async dispatchCall() {
+      createAiCallProvider: () => ({ async dispatchCall(input) {
         operations.push('provider');
+        providerRequests.push(input);
         if (providerError) throw providerError;
         return { providerCallId: 'synthetic-call', providerResponse: {} };
       } }),
     };
     throw new Error(`Unexpected import ${name}`);
   } });
-  return { operations, run: () => exports.dispatchNextAiCall({ workerId: 'test', webhookBaseUrl: 'https://example.test' }) };
+  return { operations, providerRequests, run: () => exports.dispatchNextAiCall({ workerId: 'test', webhookBaseUrl: 'https://example.test' }) };
 }
+test('outgoing task preserves template and appends clarification rules after closing', async () => {
+  const h = harness();
+  assert.equal((await h.run()).status, 'initiated');
+  const request = h.providerRequests[0];
+  assert.ok(request.task.includes('Ask about  requirements.'));
+  assert.ok(!request.task.includes('{{contact_name}}'));
+  assert.ok(request.task.indexOf('Conversation clarification and closing rules:') > request.task.indexOf('Template closing.'));
+  assert.match(request.task, /Always respect an explicit refusal/);
+  assert.match(request.task, /leave that answer unknown/);
+  assert.equal(request.maximumDurationSeconds, 60);
+});
 test('provider request follows durable authorization; accepted call is recorded', async () => {
   const h = harness();
   assert.equal((await h.run()).status, 'initiated');
