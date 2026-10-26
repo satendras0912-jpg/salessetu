@@ -1,3 +1,4 @@
+import { needsCallClassificationReview } from "@/lib/ai-calling/webhook-classification";
 import {
   NextRequest,
   NextResponse,
@@ -660,7 +661,14 @@ export async function POST(
       payload.recording_url,
     ) || null;
 
+  const classificationReview = needsCallClassificationReview(payload, terminalStatus);
+
   const resultData: JsonObject = {
+    classification_review_required: classificationReview,
+    ...(classificationReview ? {
+      qualification_processing: "pending_review",
+      qualification_reason: "Voicemail label conflicts with caller replies. Review required before qualification or retry.",
+    } : {}),
     summary:
       readString(
         payload.summary,

@@ -325,14 +325,14 @@ export default function LeadAiQualificationCard({
                   <div className="flex items-start gap-2">
                     <span
                       className={
-                        answer.isValid === false
-                          ? "rounded-full border border-red-800 bg-red-950/50 px-3 py-1 text-xs font-semibold text-red-300"
+                        answer.isValid !== true || answer.normalizedAnswer == null
+                          ? "rounded-full border border-amber-800 bg-amber-950/50 px-3 py-1 text-xs font-semibold text-amber-300"
                           : "rounded-full border border-emerald-800 bg-emerald-950/50 px-3 py-1 text-xs font-semibold text-emerald-300"
                       }
                     >
-                      {answer.isValid === false
-                        ? "Invalid"
-                        : "Valid"}
+                      {answer.normalizedAnswer == null || answer.normalizedAnswer === "" || answer.validationErrors.includes("answer_missing")
+                        ? "Needs clarification"
+                        : answer.isValid === true ? "Valid" : "Needs review"}
                     </span>
 
                     <span className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">

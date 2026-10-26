@@ -170,6 +170,8 @@ export default function LeadAiCallHistoryCard({
             const latestTranscript =
               call.transcripts[0] ?? null;
 
+            const classificationReview = call.resultData.classification_review_required === true;
+
             const status =
               latestAttempt?.status ||
               call.status;
@@ -194,6 +196,9 @@ export default function LeadAiCallHistoryCard({
                 key={call.id}
                 className="rounded-2xl border border-slate-800 bg-slate-950/50 p-5"
               >
+                {classificationReview ? (
+                  <p className="mb-4 text-sm text-amber-300">Provider reported voicemail, but caller replies were detected. Qualification needs review; automatic retry is paused.</p>
+                ) : null}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -202,7 +207,7 @@ export default function LeadAiCallHistoryCard({
                           status,
                         )}`}
                       >
-                        {formatLabel(status)}
+                        {classificationReview ? "Classification review" : formatLabel(status)}
                       </span>
 
                       {disposition ? (

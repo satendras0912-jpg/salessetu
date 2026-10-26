@@ -27,6 +27,7 @@ test('database dispatch guards (real PL/pgSQL, isolated in-memory PostgreSQL)', 
     }
     await db.exec(extractFunction('normalize_ai_call_phone'));
     await db.exec(migration);
+    await db.exec(readFileSync(new URL('../../supabase/migrations/20261026180000_ai_call_classification_review.sql', import.meta.url), 'utf8'));
     const provider = await one("insert into ai_call_providers(provider_code,provider_name) values ('test','Test') returning id");
     const connection = await one('insert into ai_call_provider_connections(organization_id,provider_id,connection_name) values ($1,$2,\'Test\') returning id', [org, provider.id]);
     const script = await one("insert into ai_call_script_templates(organization_id,template_code,template_name,opening_message,system_prompt,status) values ($1,'test','Test','Test','Test','active') returning id", [org]);
@@ -73,6 +74,22 @@ test('database dispatch guards (real PL/pgSQL, isolated in-memory PostgreSQL)', 
       const campaign = await one("insert into ai_call_campaigns(organization_id,campaign_code,campaign_name,provider_connection_id,script_template_id,status,timezone,calling_window_start,calling_window_end,allowed_weekdays) values ($1,'test','Test',$2,$3,'active','UTC','00:00','00:00',array[1,2,3,4,5,6,7]::smallint[]) returning id",[org,connection.id,script.id]);
       await query('update ai_call_jobs set campaign_id=$1 where id=$2',[campaign.id,job]);
       assert.equal((await authorize(attempt)).authorized,false);
+    });
+    await t.test('conflicting voicemail is held atomically and duplicates cannot release it', async () => {
+      const { job, attempt } = await setup();
+      await query("select public.complete_ai_call_attempt($1,'voicemail',requested_result_data => '{\"classification_review_required\":true}'::jsonb)", [attempt]);
+      assert.deepEqual(await one('select status, next_attempt_at, dispatch_requires_reconciliation, qualification_status from ai_call_jobs where id=$1',[job]), {status:'blocked',next_attempt_at:null,dispatch_requires_reconciliation:true,qualification_status:'manual_review'});
+      await query("select public.complete_ai_call_attempt($1,'completed')", [attempt]);
+      assert.equal((await one('select status from ai_call_jobs where id=$1',[job])).status,'blocked');
+      assert.equal((await one("select (public.claim_ai_call_job('test',$1)).id",[org])).id,null);
+    });
+    await t.test('ordinary voicemail keeps the existing retry policy', async () => {
+      const { job, attempt } = await setup();
+      await query("select public.complete_ai_call_attempt($1,'voicemail')", [attempt]);
+      const row = await one('select status, next_attempt_at, dispatch_requires_reconciliation from ai_call_jobs where id=$1',[job]);
+      assert.equal(row.status,'scheduled');
+      assert.ok(row.next_attempt_at);
+      assert.equal(row.dispatch_requires_reconciliation,false);
     });
     await t.test('known acceptance releases hold and keeps job out of queue', async () => {
       const { job, attempt } = await setup();
