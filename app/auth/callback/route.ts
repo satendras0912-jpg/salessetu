@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     requestUrl.searchParams.get("next"),
   );
 
-  if (!code) {
+  if (!code || requestUrl.searchParams.has("error") || requestUrl.searchParams.has("error_code")) {
     return NextResponse.redirect(
       new URL(
         "/auth-error?reason=recovery-link-invalid",

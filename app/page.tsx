@@ -1,10 +1,12 @@
 import DemoForm from "../components/DemoForm";
+import RecoveryLandingGuard from "@/components/auth/RecoveryLandingGuard";
 import Footer from "./components/Footer";
 import Navbar from "./components/Navbar";
 
 export default function Home() {
   return (
     <>
+    <RecoveryLandingGuard />
     <Navbar />
     <main className="bg-[#0A0A0A] text-white">
 
@@ -790,4 +792,4 @@ export default function Home() {
   </main>
   </>
 );
-}           
+}
