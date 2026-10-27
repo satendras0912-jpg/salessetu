@@ -1,5 +1,7 @@
 import "server-only";
 
+import { buildExtractionQuestion, normalizeAnswer, type QualificationQuestion } from "./qualification-extraction";
+
 import {
   createAiCallProvider,
 } from "./providers/factory";
@@ -32,15 +34,6 @@ type CallJob = {
 type QualificationSchema = {
   schema_name: string;
   status: string;
-};
-
-type QualificationQuestion = {
-  question_code: string;
-  question_text: string;
-  question_type: string;
-  extraction_instructions: string | null;
-  options: JsonValue;
-  validation_rules: JsonObject;
 };
 
 type ProviderConnection = {
@@ -79,18 +72,6 @@ function mapQuestionType(
   }
 }
 
-function normalizeAnswer(
-  answer: JsonValue,
-) {
-  if (
-    typeof answer === "string"
-  ) {
-    return answer.trim();
-  }
-
-  return answer;
-}
-
 function buildRawAnswer(
   answer: JsonValue,
 ) {
@@ -105,46 +86,6 @@ function buildRawAnswer(
   }
 
   return JSON.stringify(answer);
-}
-
-function buildExtractionQuestion(
-  question: QualificationQuestion,
-): string {
-  const allowedValues =
-    question.validation_rules?.allowed_values ??
-    question.options;
-
-  const instructions = [
-    question.question_text,
-    question.extraction_instructions ?? "",
-    "Use only the customer's answers from the call.",
-    "Do not treat the assistant's suggestions as customer agreement.",
-    "If the answer is missing or ambiguous, return null.",
-  ];
-
-  if (
-    question.question_type === "single_choice" &&
-    Array.isArray(allowedValues) &&
-    allowedValues.length > 0
-  ) {
-    instructions.push(
-      `Return exactly one of these codes: ${JSON.stringify(allowedValues)}.`,
-      "Return the code unchanged, without explanation or translation.",
-      "Do not return the customer's original wording.",
-    );
-  }
-
-  if (question.question_code === "site_visit_interest") {
-    instructions.push(
-      "Use the customer's final explicit requested next action.",
-      "Mentioning a site visit does not establish agreement.",
-      "If they want details before deciding on a visit, return send_details.",
-      "Return site_visit only when they explicitly agree to a visit.",
-      "An explicit do-not-call request takes priority.",
-    );
-  }
-
-  return instructions.filter(Boolean).join("\n");
 }
 
 export async function processAiCallQualification(
@@ -261,13 +202,13 @@ export async function processAiCallQualification(
       )
       .select(
         [
-  "question_code",
-  "question_text",
-  "question_type",
-  "extraction_instructions",
-  "options",
-  "validation_rules",
-].join(","),
+          "question_code",
+          "question_text",
+          "question_type",
+          "extraction_instructions",
+          "options",
+          "validation_rules",
+        ].join(","),
       )
       .eq(
         "qualification_schema_id",
