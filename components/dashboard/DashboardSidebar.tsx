@@ -16,6 +16,7 @@ type NavigationItem = {
   label: string;
   description: string;
   permission?: string;
+  additionalPermission?: string;
   exact?: boolean;
 };
 
@@ -32,6 +33,13 @@ const navigationItems: NavigationItem[] = [
     label: "Lead Operations",
     description: "Validation and assignment",
     permission: "leads.view",
+  },
+  {
+    href: "/dashboard/follow-ups",
+    label: "Follow-ups",
+    description: "Callbacks and next steps",
+    permission: "followups.view",
+    additionalPermission: "leads.view",
   },
   {
     href: "/dashboard/context",
@@ -105,7 +113,8 @@ export default function DashboardSidebar({
       return true;
     }
 
-    return permissionCodes.includes(item.permission);
+    return permissionCodes.includes(item.permission) &&
+      (!item.additionalPermission || permissionCodes.includes(item.additionalPermission));
   };
 
   const visibleNavigationItems =
