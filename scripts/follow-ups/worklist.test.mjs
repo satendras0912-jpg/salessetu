@@ -79,4 +79,5 @@ test('worklist shows selected filters and links directly to a task action card',
   assert.match(worklistPage, /bg-cyan-400\/15/);
   assert.match(worklistPage, /#follow-up-task-\$\{task\.id\}/);
   assert.match(operationalOverview, /id=\{`follow-up-task-\$\{task\.id\}`\}/);
+  assert.match(operationalOverview, /FollowUpTaskHashScroller/);
 });
