@@ -10,6 +10,7 @@ import CheckOutSiteVisitForm from "@/components/leads/CheckOutSiteVisitForm";
 import CompleteSiteVisitForm from "@/components/leads/CompleteSiteVisitForm";
 import CreateSiteVisitForm from "@/components/leads/CreateSiteVisitForm";
 import RescheduleFollowUpForm from "@/components/leads/RescheduleFollowUpForm";
+import FollowUpTaskHashScroller from "@/components/leads/FollowUpTaskHashScroller";
 
 import {
   formatOperationalLabel,
@@ -244,6 +245,7 @@ export default function LeadOperationalOverview({
 
   return (
     <section className="space-y-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-6 sm:p-8">
+      <FollowUpTaskHashScroller />
       <header>
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-400">
           Operational Controls
