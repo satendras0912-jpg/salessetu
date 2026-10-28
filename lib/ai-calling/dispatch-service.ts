@@ -90,6 +90,10 @@ export type DispatchNextAiCallResult =
       message: string;
     };
 
+const templateFallbacks: Record<string, string> = {
+  project_name: "your property enquiry",
+};
+
 function interpolateTemplate(
   template: string,
   variables: JsonObject,
@@ -108,7 +112,7 @@ function interpolateTemplate(
         return String(value);
       }
 
-      return match;
+      return templateFallbacks[key] ?? match;
     },
   );
 }
