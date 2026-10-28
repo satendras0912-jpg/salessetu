@@ -71,3 +71,12 @@ test('database failure is not presented as an empty queue', async () => {
   const s = service({error:{message:'failure'}});
   await assert.rejects(s.getFollowUpWorklist({view:'open',owner:'all',page:1}), /Unable to load follow-ups/);
 });
+
+test('worklist shows selected filters and links directly to a task action card', () => {
+  const worklistPage = readFileSync(new URL('../../app/dashboard/follow-ups/page.tsx', import.meta.url), 'utf8');
+  const operationalOverview = readFileSync(new URL('../../components/leads/LeadOperationalOverview.tsx', import.meta.url), 'utf8');
+  assert.match(worklistPage, /aria-label="Selected filters"/);
+  assert.match(worklistPage, /bg-cyan-400\/15/);
+  assert.match(worklistPage, /#follow-up-task-\$\{task\.id\}/);
+  assert.match(operationalOverview, /id=\{`follow-up-task-\$\{task\.id\}`\}/);
+});
