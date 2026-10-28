@@ -40,6 +40,15 @@ const navigationItems: NavigationItem[] = [
     description: "Callbacks and next steps",
     permission: "followups.view",
     additionalPermission: "leads.view",
+    exact: true,
+  },
+  {
+    href: "/dashboard/follow-ups/sla",
+    label: "SLA Alerts",
+    description: "At-risk and overdue tasks",
+    permission: "followups.view",
+    additionalPermission: "leads.view",
+    exact: true,
   },
   {
     href: "/dashboard/context",
