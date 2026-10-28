@@ -8,5 +8,5 @@ export function recoveryLandingDestination(params: URLSearchParams): string | nu
 }
 
 export function validRecoveryHash(value: unknown): value is string {
-  return typeof value === "string" && /^[a-f0-9]{32,128}$/i.test(value);
+  return typeof value === "string" && /^(?:pkce_)?[a-f0-9]{32,128}$/i.test(value);
 }

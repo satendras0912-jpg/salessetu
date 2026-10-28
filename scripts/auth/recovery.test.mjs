@@ -45,3 +45,18 @@ test('expired, consumed, sessionless and network failures cannot open password f
     await assert.rejects(s.confirmPasswordRecovery(form), /recovery-link-invalid/);
   }
 });
+
+test('PKCE-prefixed recovery hashes are accepted and forwarded unchanged', async () => {
+  const token = 'pkce_' + 'a'.repeat(56);
+  assert.equal(routing.validRecoveryHash(token), true);
+  assert.equal(routing.validRecoveryHash('a'.repeat(56)), true);
+  for (const invalid of ['pkce_', 'pkce_bad', 'pkce_pkce_' + 'a'.repeat(56), token + ' ', token + '&next=/']) {
+    assert.equal(routing.validRecoveryHash(invalid), false);
+  }
+  const s = setup({data:{user:{id:'test'},session:{access_token:'synthetic'}},error:null});
+  const form = new FormData(); form.set('token_hash', token);
+  await assert.rejects(s.confirmPasswordRecovery(form), /REDIRECT:\/update-password$/);
+  assert.equal(s.calls.length, 1);
+  assert.equal(s.calls[0].token_hash, token);
+  assert.equal(s.calls[0].type, 'recovery');
+});
