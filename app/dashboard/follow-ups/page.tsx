@@ -4,6 +4,7 @@ import { parseWorklistFilters, worklistHref, PAGE_SIZE, WORKLIST_VIEWS } from "@
 
 export const dynamic = "force-dynamic";
 const viewLabels = { open: "All open", overdue: "Overdue", today: "Due today", upcoming: "Upcoming", completed: "Completed" };
+const ownerLabels = { all: "All accessible tasks", mine: "Assigned to me", unassigned: "Unassigned" };
 const dateFormat = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
 const control = "rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-200";
 
@@ -22,10 +23,15 @@ export default async function FollowUpWorklistPage({ searchParams }: {
     <nav aria-label="Follow-up views" className="flex flex-wrap gap-2">
       {WORKLIST_VIEWS.map(view => <Link key={view} href={worklistHref({ ...filters, view, page: 1 })}
         aria-current={filters.view === view ? "page" : undefined}
-        className={`${control} ${filters.view === view ? "border-cyan-500 text-cyan-300" : ""}`}>
+        className={`${control} transition-colors ${filters.view === view ? "border-cyan-400 bg-cyan-400/15 font-semibold text-cyan-100 shadow-sm shadow-cyan-500/20" : "hover:border-slate-500 hover:bg-slate-800"}`}>
         {viewLabels[view]}
       </Link>)}
     </nav>
+    <div aria-label="Selected filters" className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
+      <span>Selected:</span>
+      <span className="rounded-full border border-cyan-400/60 bg-cyan-400/15 px-3 py-1 font-semibold text-cyan-100">{viewLabels[filters.view]}</span>
+      {filters.owner !== "all" ? <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 font-medium text-slate-200">{ownerLabels[filters.owner]}</span> : null}
+    </div>
     <form className="flex flex-wrap items-end gap-3" action="/dashboard/follow-ups">
       <input type="hidden" name="view" value={filters.view} />
       <label className="grid gap-2 text-sm text-slate-400">Assignment
@@ -53,7 +59,7 @@ export default async function FollowUpWorklistPage({ searchParams }: {
             <td className="whitespace-nowrap px-5 py-4"><time dateTime={task.due_at}>{dateFormat.format(new Date(task.due_at))}</time>{overdue && <p className="mt-1 text-amber-300">Overdue</p>}</td>
             <td className="px-5 py-4"><p className="capitalize">{task.status.replaceAll("_", " ")}</p><p className="mt-1 capitalize text-slate-400">{task.priority}</p></td>
             <td className="px-5 py-4">{!task.assigned_to ? "Unassigned" : task.assigned_to === result.currentUserId ? "You" : "Team member"}</td>
-            <td className="px-5 py-4"><Link className="whitespace-nowrap font-semibold text-cyan-300" href={`/dashboard/leads/${task.lead_id}`}>Open lead</Link></td>
+            <td className="px-5 py-4"><Link className="whitespace-nowrap font-semibold text-cyan-300 hover:text-cyan-100" href={`/dashboard/leads/${task.lead_id}#follow-up-task-${task.id}`} aria-label={`Open actions for ${task.title}`}>Open task actions</Link></td>
           </tr>;
         })}</tbody>
       </table>
