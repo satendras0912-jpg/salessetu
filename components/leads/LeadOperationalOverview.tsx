@@ -722,8 +722,10 @@ export default function LeadOperationalOverview({
 
                 return (
                   <article
+                    id={`follow-up-task-${task.id}`}
                     key={task.id}
-                    className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5"
+                    tabIndex={-1}
+                    className="scroll-mt-6 rounded-2xl border border-slate-800 bg-slate-900/60 p-5 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
                   >
                     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                       <div>
