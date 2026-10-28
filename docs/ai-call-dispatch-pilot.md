@@ -58,27 +58,24 @@ eligibility review. No automatic hold-clearing endpoint is included.
 
 ## Configuration after blockers are resolved
 
-GitHub repository Actions variables:
-- AI_CALL_AUTO_DISPATCH_ENABLED: leave unset or false until approved for activation.
-- AI_CALL_DISPATCH_ORGANIZATION_ID: one organization UUID, never blank.
-- AI_CALL_TIMEZONE: e.g. Asia/Kolkata.
-- AI_CALL_WINDOW_START_HOUR and AI_CALL_WINDOW_END_HOUR: integer local hours,
-  start inclusive, end exclusive; same-day windows only, no overnight window.
+Supabase is the production scheduler. Migration
+`20261028190000_ai_call_supabase_scheduler.sql` creates a five-minute cron job,
+but it starts disabled and without an organization scope. Store the production
+dispatch secret only in Supabase Vault as `ai_call_dispatch_secret`; never put it
+in a migration, source file, log, or PR. Configure the one approved organization
+and calling hours, verify the disabled result, and only then explicitly set
+`enabled = true`. The GitHub workflow is retained for a human-triggered fallback,
+not scheduled dispatch, so the two schedulers cannot run concurrently.
 
-Actions secret AI_CALL_DISPATCH_SECRET must match the production dispatch secret.
-Never paste its value into a PR, source file or chat. This draft does not create,
-read or modify repository secrets or variables.
+The Supabase configuration row contains the enable flag, one organization UUID,
+an IANA timezone and local start/end hours (start inclusive, end exclusive).
+Keep `enabled = false` until the one consented own-number test has been reviewed.
+A tick targets one job, not an entire queue. This is a small pilot scheduler, not
+a guaranteed low-latency production queue. Review before scaling beyond it.
 
-After merge and configuration, manual and scheduled runs share the same enable
-switch and concurrency group. A tick targets one job, not an entire queue. The
-nominal schedule is every five minutes; GitHub may delay/drop scheduled runs and
-public-repository inactivity can disable them. This is a small pilot scheduler,
-not a guaranteed low-latency production queue. Review before scaling beyond it.
-Other callers of the endpoint are not covered by workflow concurrency.
-
-On any failed/uncertain run, set AI_CALL_AUTO_DISPATCH_ENABLED=false, inspect
-server/job/provider state and reconcile before re-enabling. There is no automatic
-circuit breaker across future scheduled ticks in this draft.
+On any failed or uncertain outcome, set the Supabase setting `enabled = false`,
+inspect server/job/provider state and reconcile before re-enabling. There is no
+automatic circuit breaker across future scheduled ticks in this draft.
 
 ## Validation
 
@@ -90,7 +87,3 @@ All fixtures are synthetic and no real calls are placed. Coverage includes conse
 withdrawal/expiry, suppression, campaign windows, expiry, tenant configuration,
 repeated authorization, durable holds, provider/network/DB failures and webhook
 ordering. Run a full production build in the deployment environment as well.
-
-Sources:
-- https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
-- https://docs.github.com/en/actions/how-tos/troubleshoot-workflows
