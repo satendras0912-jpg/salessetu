@@ -12,6 +12,10 @@ import {
   processAiCallQualification,
 } from "@/lib/ai-calling/qualification-service";
 
+import {
+  routeAiCallQualification,
+} from "@/lib/ai-calling/post-call-routing-service";
+
 import type {
   JsonObject,
   JsonValue,
@@ -873,6 +877,34 @@ export async function POST(
 
       resultData.qualification_reason =
         qualificationResult.reason;
+
+      if (!classificationReview) {
+        try {
+          const routingResult =
+            await routeAiCallQualification(
+              webhookEvent.call_attempt_id,
+            );
+
+          resultData.post_call_routing =
+            routingResult.processed
+              ? "task_created"
+              : "skipped";
+
+          resultData.post_call_routing_reason =
+            routingResult.reason;
+
+          resultData.post_call_routing_task_id =
+            routingResult.taskId;
+        } catch (error) {
+          resultData.post_call_routing =
+            "failed";
+
+          resultData.post_call_routing_error =
+            error instanceof Error
+              ? error.message
+              : "Post-call routing failed.";
+        }
+      }
     } catch (error) {
       resultData.qualification_processing =
         "failed";
