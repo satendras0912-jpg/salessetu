@@ -91,3 +91,10 @@ for (const options of [{ preparationError: { message: 'unavailable' } }, { start
   assert.ok(!h.operations.includes('complete_ai_call_attempt'));
   assert.ok(h.operations.filter(x => x === 'start_ai_call_attempt').length <= 1);
 });
+
+
+test('AI dispatch supplies a neutral project fallback when no project is known', () => {
+  const source = readFileSync(new URL('../../lib/ai-calling/dispatch-service.ts', import.meta.url), 'utf8');
+  assert.match(source, /project_name: "your property enquiry"/);
+  assert.match(source, /templateFallbacks\[key\] \?\? match/);
+});
