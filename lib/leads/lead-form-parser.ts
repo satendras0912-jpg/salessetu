@@ -10,6 +10,7 @@ import {
   LEAD_TRANSACTION_TYPES,
   isAllowedValue,
 } from "@/lib/leads/lead-form-contract";
+import { isGeoTag } from "@/lib/geo/geo-tag-contract";
 
 import type {
   LeadFieldErrors,
@@ -400,6 +401,10 @@ function buildLeadFormValues(
 
     preferredCity: normalizeSingleLine(
       getFormString(formData, "preferredCity"),
+    ),
+
+    geoTag: normalizeSingleLine(
+      getFormString(formData, "geoTag"),
     ),
 
     unitType: normalizeSingleLine(
@@ -884,6 +889,10 @@ function validateLeadFormValues(
     values.tags,
   );
 
+  if (values.geoTag && !isGeoTag(values.geoTag)) {
+    addFieldError(errors, "geoTag", "Choose a valid GEO area.");
+  }
+
   const shortTextFields: Array<{
     field: LeadFormField;
     value: string;
@@ -1047,6 +1056,7 @@ function buildPayload(
       emptyToNull(values.preferredLocation),
     preferred_city:
       emptyToNull(values.preferredCity),
+    geo_tag: emptyToNull(values.geoTag),
     unit_type: emptyToNull(values.unitType),
     bedrooms: parsed.bedrooms,
 

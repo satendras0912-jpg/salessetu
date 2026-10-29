@@ -6,7 +6,10 @@ import { indiaDayBounds, OPEN_TASK_STATUSES, PAGE_SIZE, type WorklistFilters } f
 export type WorklistTask = {
   id: string; lead_id: string; title: string; follow_up_type: string;
   status: string; priority: string; due_at: string; assigned_to: string | null;
-  leads: { first_name: string | null; last_name: string | null };
+  leads: {
+    first_name: string | null; last_name: string | null;
+    geo_tag: string | null; preferred_location: string | null; preferred_city: string | null;
+  };
 };
 
 export async function getFollowUpWorklist(filters: WorklistFilters) {
@@ -22,7 +25,7 @@ export async function getFollowUpWorklist(filters: WorklistFilters) {
   const bounds = indiaDayBounds(now);
   // Signed-in client preserves RLS; both sides of the join are tenant-scoped.
   let query = supabase.from("follow_up_tasks")
-    .select("id,lead_id,title,follow_up_type,status,priority,due_at,assigned_to,leads!inner(first_name,last_name)", { count: "exact" })
+    .select("id,lead_id,title,follow_up_type,status,priority,due_at,assigned_to,leads!inner(first_name,last_name,geo_tag,preferred_location,preferred_city)", { count: "exact" })
     .eq("organization_id", organizationId)
     .eq("leads.organization_id", organizationId)
     .is("deleted_at", null)
@@ -32,6 +35,8 @@ export async function getFollowUpWorklist(filters: WorklistFilters) {
     : query.in("status", OPEN_TASK_STATUSES);
   if (filters.owner === "mine") query = query.eq("assigned_to", context.user.id);
   if (filters.owner === "unassigned") query = query.is("assigned_to", null);
+  if (filters.geo === "mapping_required") query = query.is("leads.geo_tag", null);
+  if (filters.geo !== "all" && filters.geo !== "mapping_required") query = query.eq("leads.geo_tag", filters.geo);
   if (filters.view === "overdue") query = query.lt("due_at", now.toISOString());
   if (filters.view === "today") query = query.gte("due_at", bounds.start).lt("due_at", bounds.end);
   if (filters.view === "upcoming") query = query.gte("due_at", bounds.end);
