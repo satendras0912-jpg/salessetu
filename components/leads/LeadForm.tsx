@@ -21,6 +21,7 @@ import {
   LEAD_TRANSACTION_TYPES,
   formatLeadOptionLabel,
 } from "@/lib/leads/lead-form-contract";
+import { GEO_TAG_LABELS, GEO_TAGS } from "@/lib/geo/geo-tag-contract";
 
 import {
   INITIAL_LEAD_ACTION_STATE,
@@ -650,6 +651,23 @@ export default function LeadForm({
               Boolean(errors.preferredCity),
             )}
           />
+        </FieldShell>
+
+        <FieldShell
+          field="geoTag"
+          label="GEO queue area"
+          errors={errors}
+          helper="Used for area-wise follow-up queues and future agent routing."
+        >
+          <select
+            id="geoTag"
+            name="geoTag"
+            defaultValue={initialValues.geoTag}
+            className={getInputClass(Boolean(errors.geoTag))}
+          >
+            <option value="">GEO mapping required</option>
+            {GEO_TAGS.map((tag) => <option key={tag} value={tag}>{GEO_TAG_LABELS[tag]}</option>)}
+          </select>
         </FieldShell>
 
         <FieldShell

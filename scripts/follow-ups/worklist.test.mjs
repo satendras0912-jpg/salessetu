@@ -9,7 +9,11 @@ function load(path, require = () => ({})) {
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, require, URLSearchParams });
   return exports;
 }
-const contract = load('../../lib/follow-ups/worklist-contract.ts');
+const geo = load('../../lib/geo/geo-tag-contract.ts');
+const contract = load('../../lib/follow-ups/worklist-contract.ts', name => {
+  if (name === '@/lib/geo/geo-tag-contract') return geo;
+  return {};
+});
 test('India midnight and month rollover use IST, not server date', () => {
   assert.equal(contract.indiaDayBounds(new Date('2026-10-31T18:29:59Z')).start, '2026-10-30T18:30:00.000Z');
   assert.equal(contract.indiaDayBounds(new Date('2026-10-31T18:30:00Z')).start, '2026-10-31T18:30:00.000Z');
@@ -21,7 +25,14 @@ test('invalid filters and pagination cannot broaden to arbitrary statuses or unb
     assert.equal(f.page, 1); assert.equal(f.view, 'open'); assert.equal(f.owner, 'all');
   }
   assert.equal(contract.parseWorklistFilters({ page: ['2', '4'] }).page, 2);
-  assert.equal(contract.worklistHref({view:'today',owner:'mine',page:2},3), '/dashboard/follow-ups?view=today&owner=mine&page=3');
+  assert.equal(contract.worklistHref({view:'today',owner:'mine',geo:'noida',page:2},3), '/dashboard/follow-ups?view=today&owner=mine&geo=noida&page=3');
+  assert.equal(contract.parseWorklistFilters({ geo: 'untrusted' }).geo, 'all');
+});
+test('GEO queue labels preserve the locality, city and an explicit unmapped fallback', () => {
+  assert.equal(contract.geoQueueLabel('greater_noida_west', null, null), 'GEO: Greater Noida West');
+  assert.equal(contract.geoQueueLabel(null, ' Greater   Noida West ', 'Greater Noida'), 'GEO: Greater Noida West');
+  assert.equal(contract.geoQueueLabel(null, null, 'Noida'), 'GEO: Noida');
+  assert.equal(contract.geoQueueLabel(null, null, null), 'GEO: mapping required');
 });
 function service({ denied = false, error = null } = {}) {
   const calls = [];
@@ -44,32 +55,35 @@ function service({ denied = false, error = null } = {}) {
 }
 test('denied access never reaches database', async () => {
   const s = service({denied:true});
-  await assert.rejects(s.getFollowUpWorklist({view:'open',owner:'all',page:1}), /denied/);
+  await assert.rejects(s.getFollowUpWorklist({view:'open',owner:'all',geo:'all',page:1}), /denied/);
   assert.equal(s.calls.some(c=>c[0]==='from'), false);
 });
 test('worklist scopes both task and lead, excludes deleted rows, applies mine and bounded pagination', async () => {
   const s = service();
-  await s.getFollowUpWorklist({view:'today',owner:'mine',page:2});
+  await s.getFollowUpWorklist({view:'today',owner:'mine',geo:'noida',page:2});
   const has = (...args) => s.calls.some(c=>JSON.stringify(c)===JSON.stringify(args));
   assert.ok(has('eq','organization_id','org-a'));
   assert.ok(has('eq','leads.organization_id','org-a'));
   assert.ok(has('is','deleted_at',null)); assert.ok(has('is','leads.deleted_at',null));
   assert.ok(has('eq','assigned_to','user-a')); assert.ok(has('range',25,49));
+  assert.ok(has('eq','leads.geo_tag','noida'));
   assert.ok(s.calls.some(c=>c[0]==='select' && c[1].includes('leads!inner')));
+  assert.ok(s.calls.some(c=>c[0]==='select' && c[1].includes('geo_tag,preferred_location,preferred_city')));
   assert.ok(s.calls.some(c=>c[0]==='gte' && c[1]==='due_at'));
   assert.ok(s.calls.some(c=>c[0]==='lt' && c[1]==='due_at'));
   assert.deepEqual(Array.from(s.calls[0][1].allOf), ['leads.view','followups.view']);
 });
 test('completed view does not apply active status predicate; unassigned is explicit', async () => {
   const s = service();
-  await s.getFollowUpWorklist({view:'completed',owner:'unassigned',page:1});
+  await s.getFollowUpWorklist({view:'completed',owner:'unassigned',geo:'mapping_required',page:1});
   assert.ok(s.calls.some(c=>c[0]==='eq' && c[1]==='status' && c[2]==='completed'));
   assert.ok(s.calls.some(c=>c[0]==='is' && c[1]==='assigned_to' && c[2]===null));
+  assert.ok(s.calls.some(c=>c[0]==='is' && c[1]==='leads.geo_tag' && c[2]===null));
   assert.equal(s.calls.some(c=>c[0]==='in'),false);
 });
 test('database failure is not presented as an empty queue', async () => {
   const s = service({error:{message:'failure'}});
-  await assert.rejects(s.getFollowUpWorklist({view:'open',owner:'all',page:1}), /Unable to load follow-ups/);
+  await assert.rejects(s.getFollowUpWorklist({view:'open',owner:'all',geo:'all',page:1}), /Unable to load follow-ups/);
 });
 
 test('worklist shows selected filters and links directly to a task action card', () => {
@@ -78,6 +92,8 @@ test('worklist shows selected filters and links directly to a task action card',
   assert.match(worklistPage, /aria-label="Selected filters"/);
   assert.match(worklistPage, /bg-cyan-400\/15/);
   assert.match(worklistPage, /#follow-up-task-\$\{task\.id\}/);
+  assert.match(worklistPage, /geoQueueLabel/);
+  assert.match(worklistPage, /GEO queue \/ Assignment/);
   assert.match(operationalOverview, /id=\{`follow-up-task-\$\{task\.id\}`\}/);
   assert.match(operationalOverview, /FollowUpTaskHashScroller/);
 });
