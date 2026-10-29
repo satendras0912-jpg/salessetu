@@ -35,6 +35,14 @@ const navigationItems: NavigationItem[] = [
     permission: "leads.view",
   },
   {
+    href: "/dashboard/site-visits",
+    label: "Site Visits",
+    description: "Property visit calendar and actions",
+    permission: "site_visits.view",
+    additionalPermission: "leads.view",
+    exact: true,
+  },
+  {
     href: "/dashboard/follow-ups",
     label: "Follow-ups",
     description: "Callbacks and next steps",
