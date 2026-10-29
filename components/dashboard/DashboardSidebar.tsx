@@ -75,6 +75,14 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/follow-ups/team-onboarding",
+    label: "GEO Team Plan",
+    description: "Example area coverage seats",
+    permission: "followups.view",
+    additionalPermission: "leads.view",
+    exact: true,
+  },
+  {
     href: "/dashboard/context",
     label: "Organization Context",
     description: "Membership and role details",
