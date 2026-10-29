@@ -83,6 +83,14 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/follow-ups/routing-simulator",
+    label: "GEO Simulator",
+    description: "Read-only routing dry run",
+    permission: "followups.view",
+    additionalPermission: "leads.view",
+    exact: true,
+  },
+  {
     href: "/dashboard/context",
     label: "Organization Context",
     description: "Membership and role details",

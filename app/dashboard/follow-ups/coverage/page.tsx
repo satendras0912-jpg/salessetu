@@ -43,6 +43,9 @@ export default async function GeoCoveragePage() {
         <Link href="/dashboard/follow-ups/team-onboarding" className="ml-3 mt-4 inline-flex rounded-xl border border-violet-400/50 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 hover:bg-violet-400/20">
           View example team plan
         </Link>
+        <Link href="/dashboard/follow-ups/routing-simulator" className="ml-3 mt-4 inline-flex rounded-xl border border-amber-400/50 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-400/20">
+          Run routing simulation
+        </Link>
       </header>
 
       {setupPending ? (
