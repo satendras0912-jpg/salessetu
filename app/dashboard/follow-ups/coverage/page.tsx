@@ -80,10 +80,10 @@ export default async function GeoCoveragePage() {
           call, message, or customer outreach is enabled here.
         </p>
         <Link
-          href="/dashboard/follow-ups?view=open&owner=unassigned&geo=all&page=1"
+          href="/dashboard/follow-ups/geo-mapping"
           className="mt-4 inline-flex rounded-xl border border-cyan-400/60 bg-cyan-400/15 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/25"
         >
-          Open unassigned follow-ups
+          Open GEO mapping inbox
         </Link>
       </section>
     </div>

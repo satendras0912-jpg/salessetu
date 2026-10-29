@@ -59,6 +59,14 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/follow-ups/geo-mapping",
+    label: "GEO Mapping",
+    description: "Tag leads awaiting an area",
+    permission: "followups.view",
+    additionalPermission: "leads.view",
+    exact: true,
+  },
+  {
     href: "/dashboard/context",
     label: "Organization Context",
     description: "Membership and role details",
