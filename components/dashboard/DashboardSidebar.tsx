@@ -43,6 +43,14 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/analytics/attribution",
+    label: "Attribution",
+    description: "Source, campaign and GEO outcomes",
+    permission: "deals.view",
+    additionalPermission: "leads.view",
+    exact: true,
+  },
+  {
     href: "/dashboard/follow-ups",
     label: "Follow-ups",
     description: "Callbacks and next steps",
