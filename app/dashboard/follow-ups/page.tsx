@@ -21,6 +21,7 @@ export default async function FollowUpWorklistPage({ searchParams }: {
       <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-400">SalesSetu Operations</p>
       <h1 className="mt-3 text-3xl font-bold text-white">Follow-up Worklist</h1>
       <p className="mt-3 text-slate-400">Prioritize customer callbacks, project details and next steps across your accessible leads. Unassigned tasks are grouped with their lead’s GEO queue.</p>
+      <Link href="/dashboard/follow-ups/coverage" className="mt-4 inline-flex rounded-xl border border-violet-400/50 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 hover:bg-violet-400/20">View GEO coverage</Link>
     </header>
     <nav aria-label="Follow-up views" className="flex flex-wrap gap-2">
       {WORKLIST_VIEWS.map(view => <Link key={view} href={worklistHref({ ...filters, view, page: 1 })}

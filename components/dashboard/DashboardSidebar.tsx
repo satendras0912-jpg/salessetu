@@ -51,6 +51,14 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/follow-ups/coverage",
+    label: "GEO Coverage",
+    description: "Area queues and future routing",
+    permission: "followups.view",
+    additionalPermission: "leads.view",
+    exact: true,
+  },
+  {
     href: "/dashboard/context",
     label: "Organization Context",
     description: "Membership and role details",
