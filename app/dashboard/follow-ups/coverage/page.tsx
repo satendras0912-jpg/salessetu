@@ -37,6 +37,9 @@ export default async function GeoCoveragePage() {
           Area-wise follow-up queues are ready for team coverage. New tasks remain
           unassigned until a team is deliberately mapped and routing is activated.
         </p>
+        <Link href="/dashboard/follow-ups/readiness" className="mt-4 inline-flex rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800">
+          View GEO readiness
+        </Link>
       </header>
 
       {setupPending ? (
