@@ -1102,6 +1102,7 @@ export default function LeadOperationalOverview({
             return (
               <article
                 key={visit.id}
+                id={`site-visit-${visit.id}`}
                 className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5"
               >
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
