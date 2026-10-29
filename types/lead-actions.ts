@@ -26,6 +26,7 @@ export type LeadFormValues = {
   preferredProject: string;
   preferredLocation: string;
   preferredCity: string;
+  geoTag: string;
   unitType: string;
   bedrooms: string;
 
@@ -101,6 +102,7 @@ export type LeadMutationPayload = {
   preferred_project: string | null;
   preferred_location: string | null;
   preferred_city: string | null;
+  geo_tag: string | null;
   unit_type: string | null;
   bedrooms: number | null;
 

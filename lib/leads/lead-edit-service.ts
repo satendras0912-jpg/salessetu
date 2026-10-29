@@ -31,6 +31,7 @@ type LeadEditRow = {
   preferred_project: string | null;
   preferred_location: string | null;
   preferred_city: string | null;
+  geo_tag: string | null;
   unit_type: string | null;
   bedrooms: NumericValue;
 
@@ -99,6 +100,7 @@ const LEAD_EDIT_SELECT = `
   preferred_project,
   preferred_location,
   preferred_city,
+  geo_tag,
   unit_type,
   bedrooms,
   budget_min,
@@ -267,6 +269,8 @@ function mapLeadToFormValues(
     preferredCity: valueOrEmpty(
       row.preferred_city,
     ),
+
+    geoTag: valueOrEmpty(row.geo_tag),
 
     unitType: valueOrEmpty(
       row.unit_type,

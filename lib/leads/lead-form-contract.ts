@@ -168,6 +168,7 @@ export const DEFAULT_LEAD_FORM_VALUES: LeadFormValues = {
   preferredProject: "",
   preferredLocation: "",
   preferredCity: "",
+  geoTag: "",
   unitType: "",
   bedrooms: "",
 
