@@ -8,9 +8,13 @@ export default function DemoForm() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [utm, setUtm] = useState({
-    source: "Website",
-    medium: "Organic",
-    campaign: "Direct",
+    source: "website",
+    medium: "organic",
+    campaign: "direct",
+    term: "",
+    content: "",
+    landingPageUrl: "",
+    referrerUrl: "",
   });
 
   // Capture UTM parameters
@@ -18,9 +22,13 @@ export default function DemoForm() {
     const params = new URLSearchParams(window.location.search);
 
     setUtm({
-      source: params.get("utm_source") || "Website",
-      medium: params.get("utm_medium") || "Organic",
-      campaign: params.get("utm_campaign") || "Direct",
+      source: params.get("utm_source")?.trim().toLowerCase() || "website",
+      medium: params.get("utm_medium")?.trim().toLowerCase() || "organic",
+      campaign: params.get("utm_campaign")?.trim() || "direct",
+      term: params.get("utm_term")?.trim() || "",
+      content: params.get("utm_content")?.trim() || "",
+      landingPageUrl: window.location.href,
+      referrerUrl: document.referrer || "",
     });
   }, []);
 
@@ -51,6 +59,15 @@ export default function DemoForm() {
             source: utm.source,
             medium: utm.medium,
             campaign: utm.campaign,
+            // Canonical payload keys for SalesSetu / n8n mappings. The legacy
+            // keys above remain so existing workflows keep working unchanged.
+            utm_source: utm.source,
+            utm_medium: utm.medium,
+            utm_campaign: utm.campaign,
+            utm_term: utm.term || null,
+            utm_content: utm.content || null,
+            landing_page_url: utm.landingPageUrl,
+            referrer_url: utm.referrerUrl || null,
           }),
         }
       );
