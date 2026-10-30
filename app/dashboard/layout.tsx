@@ -40,6 +40,8 @@ export default async function DashboardLayout({
       roleLabel={primaryRole}
       isOwner={Boolean(context.membership?.isOwner)}
       permissionCodes={permissions.codes}
+      organizationId={context.organization?.id ?? null}
+      availableOrganizations={context.availableOrganizations}
     >
       {children}
     </DashboardShell>

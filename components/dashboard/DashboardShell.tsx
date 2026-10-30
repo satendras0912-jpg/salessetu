@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import LogoutButton from "@/components/dashboard/LogoutButton";
+import WorkspaceSwitcher from "@/components/dashboard/WorkspaceSwitcher";
+import type { AvailableOrganization } from "@/lib/auth/current-context";
 
 type DashboardShellProps = {
   children: ReactNode;
@@ -11,6 +13,8 @@ type DashboardShellProps = {
   roleLabel: string;
   isOwner: boolean;
   permissionCodes: readonly string[];
+  organizationId: string | null;
+  availableOrganizations: readonly AvailableOrganization[];
 };
 
 export default function DashboardShell({
@@ -21,6 +25,8 @@ export default function DashboardShell({
   roleLabel,
   isOwner,
   permissionCodes,
+  organizationId,
+  availableOrganizations,
 }: DashboardShellProps) {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -34,7 +40,7 @@ export default function DashboardShell({
 
       <div className="lg:pl-72">
         <header className="border-b border-slate-800 bg-slate-950/95 px-6 py-4 backdrop-blur lg:sticky lg:top-0 lg:z-20">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-6">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-slate-100">
                 {organizationName}
@@ -58,7 +64,14 @@ export default function DashboardShell({
               </div>
             </div>
 
-            <LogoutButton />
+            <div className="flex items-center gap-3">
+              <WorkspaceSwitcher
+                activeOrganizationId={organizationId}
+                organizations={availableOrganizations}
+              />
+
+              <LogoutButton />
+            </div>
           </div>
         </header>
 

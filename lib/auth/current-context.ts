@@ -1,6 +1,13 @@
 import { cache } from "react";
+import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
+
+export const ACTIVE_ORGANIZATION_COOKIE =
+  "salessetu_active_organization_id";
+
+export const ACTIVE_ORGANIZATION_COOKIE_MAX_AGE =
+  60 * 60 * 24 * 180;
 
 export type CurrentOrganization = {
   id: string;
@@ -22,6 +29,14 @@ export type CurrentMembership = {
   isOwner: boolean;
 };
 
+export type AvailableOrganization = {
+  id: string;
+  name: string;
+  slug: string | null;
+  organizationType: string | null;
+  isOwner: boolean;
+};
+
 export type CurrentUserContext = {
   user: {
     id: string;
@@ -30,10 +45,12 @@ export type CurrentUserContext = {
   organization: CurrentOrganization | null;
   membership: CurrentMembership | null;
   roles: CurrentRole[];
+  availableOrganizations: AvailableOrganization[];
 };
 
 async function loadCurrentUserContext(): Promise<CurrentUserContext | null> {
   const supabase = await createClient();
+  const cookieStore = await cookies();
 
   const {
     data: { user },
@@ -51,12 +68,13 @@ async function loadCurrentUserContext(): Promise<CurrentUserContext | null> {
         id,
         organization_id,
         membership_status,
-        is_owner
+        is_owner,
+        created_at
       `,
     )
     .eq("user_id", user.id)
     .eq("membership_status", "active")
-    .limit(1);
+    .order("created_at", { ascending: true });
 
   if (membershipError) {
     throw new Error(
@@ -64,9 +82,10 @@ async function loadCurrentUserContext(): Promise<CurrentUserContext | null> {
     );
   }
 
-  const membershipRecord = memberships?.[0];
+  const activeMemberships = memberships ?? [];
+  const firstMembership = activeMemberships[0];
 
-  if (!membershipRecord) {
+  if (!firstMembership) {
     return {
       user: {
         id: user.id,
@@ -75,26 +94,96 @@ async function loadCurrentUserContext(): Promise<CurrentUserContext | null> {
       organization: null,
       membership: null,
       roles: [],
+      availableOrganizations: [],
     };
   }
 
-  const { data: organization, error: organizationError } = await supabase
+  const organizationIds = [
+    ...new Set(
+      activeMemberships
+        .map((membership) => membership.organization_id)
+        .filter((organizationId): organizationId is string =>
+          Boolean(organizationId),
+        ),
+    ),
+  ];
+
+  const { data: organizations, error: organizationsError } = await supabase
     .from("organizations")
     .select(
       `
         id,
         name,
         slug,
-        status
+        status,
+        organization_type
       `,
     )
-    .eq("id", membershipRecord.organization_id)
-    .maybeSingle();
+    .in("id", organizationIds);
 
-  if (organizationError) {
+  if (organizationsError) {
     throw new Error(
-      `Failed to load organization: ${organizationError.message}`,
+      `Failed to load organizations: ${organizationsError.message}`,
     );
+  }
+
+  const organizationsById = new Map(
+    (organizations ?? []).map((organization) => [
+      organization.id,
+      organization,
+    ]),
+  );
+
+  const availableOrganizations = activeMemberships
+    .map((membership) => {
+      const organization = organizationsById.get(
+        membership.organization_id,
+      );
+
+      if (!organization || organization.status !== "active") {
+        return null;
+      }
+
+      return {
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        organizationType: organization.organization_type,
+        isOwner: Boolean(membership.is_owner),
+      } satisfies AvailableOrganization;
+    })
+    .filter(
+      (
+        organization,
+      ): organization is AvailableOrganization =>
+        organization !== null,
+    );
+
+  const requestedOrganizationId = cookieStore.get(
+    ACTIVE_ORGANIZATION_COOKIE,
+  )?.value;
+
+  const selectedOrganization =
+    availableOrganizations.find(
+      (organization) => organization.id === requestedOrganizationId,
+    ) ?? availableOrganizations[0];
+
+  const membershipRecord = activeMemberships.find(
+    (membership) =>
+      membership.organization_id === selectedOrganization?.id,
+  );
+
+  if (!membershipRecord || !selectedOrganization) {
+    return {
+      user: {
+        id: user.id,
+        email: user.email ?? null,
+      },
+      organization: null,
+      membership: null,
+      roles: [],
+      availableOrganizations,
+    };
   }
 
   const { data: assignedRoles, error: assignedRolesError } = await supabase
@@ -142,12 +231,12 @@ async function loadCurrentUserContext(): Promise<CurrentUserContext | null> {
       email: user.email ?? null,
     },
 
-    organization: organization
+    organization: selectedOrganization
       ? {
-          id: organization.id,
-          name: organization.name,
-          slug: organization.slug,
-          status: organization.status,
+          id: selectedOrganization.id,
+          name: selectedOrganization.name,
+          slug: selectedOrganization.slug,
+          status: "active",
         }
       : null,
 
@@ -159,6 +248,7 @@ async function loadCurrentUserContext(): Promise<CurrentUserContext | null> {
     },
 
     roles,
+    availableOrganizations,
   };
 }
 
