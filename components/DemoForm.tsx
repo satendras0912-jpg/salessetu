@@ -44,36 +44,67 @@ export default function DemoForm() {
     const form = e.currentTarget;
 
     try {
-      const response = await fetch(
-        "https://automation.salessetu.in/webhook/sales-lead",
-        {
+      const legacyWebhookUrl =
+        "https://automation.salessetu.in/webhook/sales-lead";
+      const attributionWebhookUrl =
+        process.env.NEXT_PUBLIC_UTM_ATTRIBUTION_WEBHOOK_URL;
+      const captureRouteKey =
+        process.env.NEXT_PUBLIC_UTM_CAPTURE_ROUTE_KEY ||
+        "salessetu-web-demo";
+
+      const payload = {
+        name: formData.get("name"),
+        phone: formData.get("phone"),
+        project: formData.get("project"),
+        location: formData.get("location"),
+        source: utm.source,
+        medium: utm.medium,
+        campaign: utm.campaign,
+        // Canonical payload keys for SalesSetu / n8n mappings. The legacy
+        // keys above remain so existing workflows keep working unchanged.
+        utm_source: utm.source,
+        utm_medium: utm.medium,
+        utm_campaign: utm.campaign,
+        utm_term: utm.term || null,
+        utm_content: utm.content || null,
+        landing_page_url: utm.landingPageUrl,
+        referrer_url: utm.referrerUrl || null,
+      };
+
+      const legacyResponse = await fetch(legacyWebhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!legacyResponse.ok) {
+        throw new Error("Legacy lead webhook failed");
+      }
+
+      // A separate, environment-controlled shadow delivery keeps the live
+      // Airtable capture path intact until Supabase verification is complete.
+      if (attributionWebhookUrl) {
+        void fetch(attributionWebhookUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            name: formData.get("name"),
-            phone: formData.get("phone"),
-            project: formData.get("project"),
-            location: formData.get("location"),
-            source: utm.source,
-            medium: utm.medium,
-            campaign: utm.campaign,
-            // Canonical payload keys for SalesSetu / n8n mappings. The legacy
-            // keys above remain so existing workflows keep working unchanged.
-            utm_source: utm.source,
-            utm_medium: utm.medium,
-            utm_campaign: utm.campaign,
-            utm_term: utm.term || null,
-            utm_content: utm.content || null,
-            landing_page_url: utm.landingPageUrl,
-            referrer_url: utm.referrerUrl || null,
+            ...payload,
+            capture_route_key: captureRouteKey,
           }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Webhook failed");
+        }).then((attributionResponse) => {
+          if (!attributionResponse.ok) {
+            throw new Error("UTM attribution webhook failed");
+          }
+        }).catch((attributionError) => {
+          console.error(
+            "UTM attribution shadow delivery failed:",
+            attributionError
+          );
+        });
       }
 
       setSuccess(true);
