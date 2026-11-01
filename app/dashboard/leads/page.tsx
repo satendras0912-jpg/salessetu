@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import LeadFilters from "@/components/leads/LeadFilters";
 import LeadTable from "@/components/leads/LeadTable";
+import LiveLeadListRefresh from "@/components/leads/LiveLeadListRefresh";
 
 import { requirePermissionAccess } from "@/lib/auth/access-control";
 
@@ -267,6 +268,8 @@ export default async function LeadOperationsPage({
           </div>
         </div>
       </header>
+
+      <LiveLeadListRefresh organizationId={organizationId} />
 
       {/* Summary cards */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
