@@ -27,6 +27,11 @@ export type ManualValidationQueueItem = {
     notes: string | null;
     reviewedAt: string;
   } | null;
+  override: {
+    reason: string;
+    notes: string | null;
+    grantedAt: string;
+  } | null;
 };
 
 type LeadRow = {
@@ -50,6 +55,13 @@ type ReviewRow = {
   reason: string;
   notes: string | null;
   reviewed_at: string;
+};
+
+type OverrideRow = {
+  lead_id: string;
+  override_reason: string;
+  notes: string | null;
+  granted_at: string;
 };
 
 function leadName(lead: LeadRow): string {
@@ -113,9 +125,29 @@ export async function getManualValidationQueue(
     ),
   );
 
+  const { data: overrideData, error: overrideError } = await supabase
+    .from("lead_manual_validation_overrides")
+    .select("lead_id,override_reason,notes,granted_at")
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .in("lead_id", leadIds);
+
+  if (overrideError) {
+    throw new Error(
+      `Unable to load validation overrides: ${overrideError.message}`,
+    );
+  }
+
+  const overridesByLeadId = new Map(
+    ((overrideData ?? []) as unknown as OverrideRow[]).map(
+      (override) => [override.lead_id, override] as const,
+    ),
+  );
+
   return leads
     .map((lead) => {
       const review = reviewsByLeadId.get(lead.id) ?? null;
+      const override = overridesByLeadId.get(lead.id) ?? null;
 
       return {
         id: lead.id,
@@ -135,6 +167,13 @@ export async function getManualValidationQueue(
               reason: review.reason,
               notes: review.notes,
               reviewedAt: review.reviewed_at,
+            }
+          : null,
+        override: override
+          ? {
+              reason: override.override_reason,
+              notes: override.notes,
+              grantedAt: override.granted_at,
             }
           : null,
       } satisfies ManualValidationQueueItem;
