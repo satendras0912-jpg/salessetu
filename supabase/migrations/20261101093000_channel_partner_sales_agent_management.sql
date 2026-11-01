@@ -367,7 +367,7 @@ begin
   select
     organization_member.id,
     organization_member.user_id,
-    authenticated_user.email,
+    authenticated_user.email::text,
     coalesce(
       agent_profile.display_name,
       profile.display_name,
