@@ -345,6 +345,10 @@ export async function getLeadList(
       ascending: false,
     });
 
+  if (!filters.includeArchived) {
+    query = query.neq("lead_status", "archived");
+  }
+
   const search = sanitiseSearchTerm(
     filters.search ?? "",
   );
