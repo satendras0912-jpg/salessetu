@@ -36,6 +36,12 @@ from target_members
 where organization_member.id = target_members.id;
 
 update public.assignment_agent_profiles as agent_profile
+set agent_code = concat('KRV-TMP-', replace(agent_profile.id::text, '-', ''))
+from public.organizations as organization
+where organization.id = agent_profile.organization_id
+  and organization.name = 'Kavyarpit Realty Pvt Ltd';
+
+update public.assignment_agent_profiles as agent_profile
 set agent_code = organization_member.metadata ->> 'employee_id'
 from public.organization_members as organization_member
 join public.organizations as organization
