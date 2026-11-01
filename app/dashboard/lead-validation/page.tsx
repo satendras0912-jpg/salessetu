@@ -11,6 +11,7 @@ import {
 import {
   decideManualLeadValidationAction,
   grantManualLeadValidationOverrideAction,
+  revokeManualLeadValidationOverrideAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -86,6 +87,7 @@ export default async function ManualLeadValidationPage({
   });
 
   const organizationId = context.organization?.id;
+  const isOwner = context.membership?.isOwner ?? false;
 
   if (!organizationId) {
     redirect("/auth-error?reason=organization_context_missing");
@@ -282,7 +284,67 @@ export default async function ManualLeadValidationPage({
                       </div>
                     ) : null}
 
-                    {lead.review &&
+                    {lead.overrideHistory.length > 0 ? (
+                      <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950/50 p-4 text-sm">
+                        <p className="font-semibold text-slate-200">
+                          Owner override audit
+                        </p>
+                        <div className="mt-3 space-y-3">
+                          {lead.overrideHistory.map((override) => (
+                            <div
+                              key={`${override.grantedAt}-${override.status}`}
+                              className="border-l-2 border-slate-700 pl-3"
+                            >
+                              <p className="font-medium text-slate-300">
+                                {override.status === "active"
+                                  ? "Active override"
+                                  : "Revoked override"}
+                              </p>
+                              <p className="mt-1 text-slate-400">
+                                {override.reason}
+                              </p>
+                              {override.revokeReason ? (
+                                <p className="mt-1 text-slate-500">
+                                  Revoked: {override.revokeReason}
+                                </p>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {isOwner && lead.override ? (
+                      <form
+                        action={revokeManualLeadValidationOverrideAction}
+                        className="mt-4 space-y-3 rounded-xl border border-rose-500/40 bg-rose-500/5 p-4"
+                      >
+                        <input type="hidden" name="leadId" value={lead.id} />
+                        <p className="text-sm font-semibold text-rose-200">
+                          Revoke owner override
+                        </p>
+                        <p className="text-xs leading-5 text-rose-100/70">
+                          New assignment, follow-up and site-visit actions will be blocked again.
+                        </p>
+                        <input
+                          required
+                          minLength={3}
+                          maxLength={500}
+                          name="reason"
+                          placeholder="Why should this override be revoked?"
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-rose-400"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-xl border border-rose-500/60 px-4 py-2 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/10"
+                        >
+                          Revoke owner override
+                        </button>
+                      </form>
+                    ) : null}
+
+                    {isOwner &&
+                    lead.review &&
                     ["hold", "rejected"].includes(
                       lead.review.decision,
                     ) &&

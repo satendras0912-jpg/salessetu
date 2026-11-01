@@ -166,3 +166,63 @@ export async function grantManualLeadValidationOverrideAction(
 
   redirect(pageHref("updated", "owner override"));
 }
+
+
+export async function revokeManualLeadValidationOverrideAction(
+  formData: FormData,
+): Promise<void> {
+  const leadId = String(formData.get("leadId") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!leadId || reason.length < 3 || reason.length > 500) {
+    redirect(
+      pageHref(
+        "error",
+        "Revoke reason must contain between 3 and 500 characters.",
+      ),
+    );
+  }
+
+  const { context } = await requirePermissionAccess({
+    allOf: [
+      LEAD_FORM_PERMISSIONS.view,
+      REVIEW_PERMISSION,
+    ],
+    loginRedirectTo: "/login?next=/dashboard/lead-validation",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  if (!context.membership?.isOwner) {
+    redirect(
+      pageHref(
+        "error",
+        "Only the workspace owner can revoke an override.",
+      ),
+    );
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc(
+    "revoke_manual_lead_validation_override",
+    {
+      p_lead_id: leadId,
+      p_revoke_reason: reason,
+    },
+  );
+
+  if (error) {
+    redirect(
+      pageHref(
+        "error",
+        `Override was not revoked: ${error.message}`,
+      ),
+    );
+  }
+
+  revalidatePath("/dashboard/lead-validation");
+  revalidatePath("/dashboard/leads");
+  revalidatePath(`/dashboard/leads/${leadId}`);
+
+  redirect(pageHref("updated", "owner override revoked"));
+}
