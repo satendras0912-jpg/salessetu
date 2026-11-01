@@ -115,6 +115,12 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/team",
+    label: "Sales Agents",
+    description: "Invite and manage your team",
+    permission: "organization.manage_members",
+  },
+  {
     href: "/dashboard/context",
     label: "Organization Context",
     description: "Membership and role details",
