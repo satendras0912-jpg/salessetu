@@ -64,6 +64,7 @@ function formatMemberLabel(
   member: {
     displayName: string;
     agentCode?: string | null;
+    agentProfileId?: string | null;
   } | null,
 ): string | null {
   if (!member) {
@@ -719,7 +720,9 @@ export default function LeadOperationalOverview({
                     ? members.find(
                         (member) =>
                           member.userId ===
-                          task.assignedTo,
+                            task.assignedTo ||
+                          member.agentProfileId ===
+                            task.assignedTo,
                       ) ?? null
                     : null;
 
@@ -728,7 +731,9 @@ export default function LeadOperationalOverview({
                     ? members.find(
                       (member) =>
                         member.userId ===
-                        task.escalatedTo,
+                          task.escalatedTo ||
+                        member.agentProfileId ===
+                          task.escalatedTo,
                     ) ?? null
                     : null;
 

@@ -442,6 +442,7 @@ function mapOrganizationMembers(
       displayName: agent.displayName,
       email: null,
       agentCode: agent.agentCode,
+      agentProfileId: agent.profileId,
     });
   }
 
@@ -870,22 +871,57 @@ async function loadFollowUpAssigneeMembers(
   const supabase =
     await createClient();
 
-  const { data, error } = await supabase
-    .from("assignment_agent_profiles")
-    .select(ASSIGNMENT_AGENT_SELECT)
-    .eq("organization_id", organizationId)
-    .in("user_id", userIds);
+  const [
+    userIdResult,
+    profileIdResult,
+  ] = await Promise.all([
+    supabase
+      .from("assignment_agent_profiles")
+      .select(ASSIGNMENT_AGENT_SELECT)
+      .eq("organization_id", organizationId)
+      .in("user_id", userIds),
 
-  if (error) {
+    supabase
+      .from("assignment_agent_profiles")
+      .select(ASSIGNMENT_AGENT_SELECT)
+      .eq("organization_id", organizationId)
+      .in("id", userIds),
+  ]);
+
+  const lookupError =
+    userIdResult.error ??
+    profileIdResult.error;
+
+  if (lookupError) {
     throw new Error(
-      `Unable to load follow-up assignees: ${error.message}`,
+      `Unable to load follow-up assignees: ${lookupError.message}`,
     );
   }
 
+  const rows = [
+    ...(
+      (userIdResult.data ??
+        []) as unknown as AssignmentAgentRow[]
+    ),
+    ...(
+      (profileIdResult.data ??
+        []) as unknown as AssignmentAgentRow[]
+    ),
+  ];
+
+  const profiles = new Map<
+    string,
+    AssignmentAgentRow
+  >();
+
+  for (const row of rows) {
+    profiles.set(row.id, row);
+  }
+
   return mapOrganizationMembers(
-    (
-      (data ?? []) as unknown as AssignmentAgentRow[]
-    ).map(mapAssignmentAgent),
+    Array.from(profiles.values()).map(
+      mapAssignmentAgent,
+    ),
   );
 }
 
