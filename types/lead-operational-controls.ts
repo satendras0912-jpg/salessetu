@@ -80,6 +80,7 @@ export type OrganizationMemberOption = {
   displayName: string;
   email: string | null;
   agentCode?: string | null;
+  agentProfileId?: string | null;
 };
 
 export type LeadAssignmentSummary = {
