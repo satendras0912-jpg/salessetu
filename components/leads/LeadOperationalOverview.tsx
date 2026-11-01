@@ -60,6 +60,21 @@ function formatDateTime(
   ).format(date);
 }
 
+function formatMemberLabel(
+  member: {
+    displayName: string;
+    agentCode?: string | null;
+  } | null,
+): string | null {
+  if (!member) {
+    return null;
+  }
+
+  return member.agentCode
+    ? `${member.displayName} · ${member.agentCode}`
+    : member.displayName;
+}
+
 function isTerminalFollowUpStatus(
   status: string,
 ): boolean {
@@ -805,8 +820,9 @@ export default function LeadOperationalOverview({
                         </dt>
 
                         <dd className="mt-1 font-medium text-slate-200">
-                          {taskAssignedMember
-                            ?.displayName ??
+                          {formatMemberLabel(
+                            taskAssignedMember,
+                          ) ??
                             task.assignedTo ??
                             "Unassigned"}
                         </dd>
@@ -824,9 +840,9 @@ export default function LeadOperationalOverview({
                           {task.escalatedTo ? (
                             <span className="mt-1 block text-xs font-normal text-orange-200">
                               To{" "}
-                              {taskEscalatedMember
-                                ?.displayName ??
-                                task.escalatedTo}
+                              {formatMemberLabel(
+                                taskEscalatedMember,
+                              ) ?? task.escalatedTo}
                             </span>
                           ) : (
                               <span className="mt-1 block text-xs font-normal text-slate-500">
