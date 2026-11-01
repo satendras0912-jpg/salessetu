@@ -112,8 +112,8 @@ function InviteSalesAgentForm() {
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
           This adds only the standard Sales Agent role. The agent
           cannot manage your team, roles, billing, workflows or
-          any other workspace. New agents are set to manual
-          lead routing by default.
+          any other workspace. New agents receive the next Employee
+          ID automatically and are set to manual lead routing by default.
         </p>
       </div>
 
@@ -392,7 +392,7 @@ export default function TeamManagementClient({
                     </div>
 
                     <p className="mt-4 text-xs text-slate-500">
-                      Agent ID: {agent.agent_code ?? "Pending"}
+                      Employee ID: {agent.agent_code ?? "Pending"}
                     </p>
                   </div>
 
