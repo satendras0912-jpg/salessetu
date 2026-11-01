@@ -97,6 +97,10 @@ function createPageHref(
     params.set("sourceId", filters.sourceId);
   }
 
+  if (filters.includeArchived) {
+    params.set("includeArchived", "true");
+  }
+
   params.set("page", String(page));
   params.set(
     "pageSize",
@@ -164,6 +168,10 @@ export default async function LeadOperationsPage({
     sourceId:
       getSingleValue(rawParams.sourceId).trim() ||
       undefined,
+
+    includeArchived:
+      getSingleValue(rawParams.includeArchived) ===
+      "true",
 
     page: parsePositiveInteger(
       getSingleValue(rawParams.page),

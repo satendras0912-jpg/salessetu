@@ -4,6 +4,7 @@ export type LeadListFilters = {
   assignmentStatus?: string;
   validationDecision?: string;
   sourceId?: string;
+  includeArchived?: boolean;
   page?: number;
   pageSize?: number;
 };
