@@ -7,11 +7,13 @@ import {
 } from "react";
 
 import {
-  INITIAL_TEAM_ACTION_STATE,
   inviteSalesAgentAction,
   setSalesAgentStatusAction,
-  type TeamActionState,
 } from "@/app/dashboard/team/actions";
+import {
+  INITIAL_TEAM_ACTION_STATE,
+  type TeamActionState,
+} from "@/lib/team/team-action-contract";
 
 export type ManagedSalesAgent = {
   membership_id: string;
