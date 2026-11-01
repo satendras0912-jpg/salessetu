@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 
 import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
 import LogoutButton from "@/components/dashboard/LogoutButton";
+import NotificationInbox, {
+  type DashboardNotification,
+} from "@/components/dashboard/NotificationInbox";
 import WorkspaceSwitcher from "@/components/dashboard/WorkspaceSwitcher";
 import type { AvailableOrganization } from "@/lib/auth/current-context";
 
@@ -15,6 +18,7 @@ type DashboardShellProps = {
   permissionCodes: readonly string[];
   organizationId: string | null;
   availableOrganizations: readonly AvailableOrganization[];
+  notifications: readonly DashboardNotification[];
 };
 
 export default function DashboardShell({
@@ -27,6 +31,7 @@ export default function DashboardShell({
   permissionCodes,
   organizationId,
   availableOrganizations,
+  notifications,
 }: DashboardShellProps) {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -65,6 +70,8 @@ export default function DashboardShell({
             </div>
 
             <div className="flex items-center gap-3">
+              <NotificationInbox items={notifications} />
+
               <WorkspaceSwitcher
                 activeOrganizationId={organizationId}
                 organizations={availableOrganizations}
