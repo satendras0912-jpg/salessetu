@@ -79,6 +79,7 @@ export type OrganizationMemberOption = {
   userId: string;
   displayName: string;
   email: string | null;
+  agentCode?: string | null;
 };
 
 export type LeadAssignmentSummary = {

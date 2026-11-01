@@ -441,7 +441,33 @@ function mapOrganizationMembers(
       userId: agent.userId,
       displayName: agent.displayName,
       email: null,
+      agentCode: agent.agentCode,
     });
+  }
+
+  return Array.from(members.values()).sort(
+    (leftMember, rightMember) =>
+      leftMember.displayName.localeCompare(
+        rightMember.displayName,
+        "en-IN",
+      ),
+  );
+}
+
+function mergeOrganizationMembers(
+  ...memberGroups: OrganizationMemberOption[][]
+): OrganizationMemberOption[] {
+  const members = new Map<
+    string,
+    OrganizationMemberOption
+  >();
+
+  for (const group of memberGroups) {
+    for (const member of group) {
+      if (!members.has(member.userId)) {
+        members.set(member.userId, member);
+      }
+    }
   }
 
   return Array.from(members.values()).sort(
@@ -822,6 +848,47 @@ async function loadFollowUps(
   ).map(mapFollowUpTask);
 }
 
+async function loadFollowUpAssigneeMembers(
+  organizationId: string,
+  followUps: FollowUpTaskSummary[],
+): Promise<OrganizationMemberOption[]> {
+  const userIds = Array.from(
+    new Set(
+      followUps.flatMap((task) =>
+        [task.assignedTo, task.escalatedTo].filter(
+          (userId): userId is string =>
+            Boolean(userId),
+        ),
+      ),
+    ),
+  );
+
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const supabase =
+    await createClient();
+
+  const { data, error } = await supabase
+    .from("assignment_agent_profiles")
+    .select(ASSIGNMENT_AGENT_SELECT)
+    .eq("organization_id", organizationId)
+    .in("user_id", userIds);
+
+  if (error) {
+    throw new Error(
+      `Unable to load follow-up assignees: ${error.message}`,
+    );
+  }
+
+  return mapOrganizationMembers(
+    (
+      (data ?? []) as unknown as AssignmentAgentRow[]
+    ).map(mapAssignmentAgent),
+  );
+}
+
 async function loadSiteVisits(
   organizationId: string,
   leadId: string,
@@ -933,6 +1000,14 @@ export async function getLeadOperationalContext(
       : Promise.resolve([]),
   ]);
 
+  const followUpMembers =
+    access.canViewFollowUps
+      ? await loadFollowUpAssigneeMembers(
+          cleanOrganizationId,
+          followUps,
+        )
+      : [];
+
   return {
     snapshot: mapLeadSnapshot(
       leadData as unknown as LeadOperationalRow,
@@ -945,7 +1020,10 @@ export async function getLeadOperationalContext(
       assignmentData.teams,
 
     members:
-      assignmentData.members,
+      mergeOrganizationMembers(
+        assignmentData.members,
+        followUpMembers,
+      ),
 
     currentAssignment:
       assignmentData.currentAssignment,
