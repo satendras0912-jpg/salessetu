@@ -109,7 +109,7 @@ export async function getManualValidationQueue(
 
   const reviewsByLeadId = new Map(
     ((reviewData ?? []) as unknown as ReviewRow[]).map(
-      (review) => [review.lead_id, review],
+      (review) => [review.lead_id, review] as const,
     ),
   );
 
