@@ -74,6 +74,12 @@ export function buildLeadOperationalDataAccess({
 
         LEAD_OPERATIONAL_PERMISSIONS
           .overrideAssignment,
+
+        // Sales Agents can load only their own current assignment
+        // through the RLS self-read policy. This is required to
+        // create and manage follow-ups on their assigned leads.
+        LEAD_OPERATIONAL_PERMISSIONS
+          .createFollowUp,
       ],
     );
 
