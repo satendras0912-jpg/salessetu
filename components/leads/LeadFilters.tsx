@@ -101,6 +101,21 @@ export default function LeadFilters({
 
         <label>
           <span className="mb-2 block text-sm font-medium text-slate-300">
+            Visibility
+          </span>
+
+          <select
+            name="includeArchived"
+            defaultValue={filters.includeArchived ? "true" : "false"}
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-cyan-500"
+          >
+            <option value="false">Active leads</option>
+            <option value="true">Include archived</option>
+          </select>
+        </label>
+
+        <label>
+          <span className="mb-2 block text-sm font-medium text-slate-300">
             Validation
           </span>
 
