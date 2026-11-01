@@ -32,6 +32,14 @@ export type ManualValidationQueueItem = {
     notes: string | null;
     grantedAt: string;
   } | null;
+  overrideHistory: Array<{
+    status: "active" | "revoked";
+    reason: string;
+    notes: string | null;
+    grantedAt: string;
+    revokedAt: string | null;
+    revokeReason: string | null;
+  }>;
 };
 
 type LeadRow = {
@@ -59,9 +67,12 @@ type ReviewRow = {
 
 type OverrideRow = {
   lead_id: string;
+  status: "active" | "revoked";
   override_reason: string;
   notes: string | null;
   granted_at: string;
+  revoked_at: string | null;
+  revoke_reason: string | null;
 };
 
 function leadName(lead: LeadRow): string {
@@ -127,9 +138,9 @@ export async function getManualValidationQueue(
 
   const { data: overrideData, error: overrideError } = await supabase
     .from("lead_manual_validation_overrides")
-    .select("lead_id,override_reason,notes,granted_at")
+    .select("lead_id,status,override_reason,notes,granted_at,revoked_at,revoke_reason")
     .eq("organization_id", organizationId)
-    .eq("status", "active")
+    .order("granted_at", { ascending: false })
     .in("lead_id", leadIds);
 
   if (overrideError) {
@@ -139,10 +150,18 @@ export async function getManualValidationQueue(
   }
 
   const overridesByLeadId = new Map(
-    ((overrideData ?? []) as unknown as OverrideRow[]).map(
-      (override) => [override.lead_id, override] as const,
-    ),
+    ((overrideData ?? []) as unknown as OverrideRow[])
+      .filter((override) => override.status === "active")
+      .map((override) => [override.lead_id, override] as const),
   );
+
+  const overrideHistoryByLeadId = new Map<string, OverrideRow[]>();
+
+  for (const override of (overrideData ?? []) as unknown as OverrideRow[]) {
+    const history = overrideHistoryByLeadId.get(override.lead_id) ?? [];
+    history.push(override);
+    overrideHistoryByLeadId.set(override.lead_id, history);
+  }
 
   return leads
     .map((lead) => {
@@ -176,6 +195,16 @@ export async function getManualValidationQueue(
               grantedAt: override.granted_at,
             }
           : null,
+        overrideHistory: (
+          overrideHistoryByLeadId.get(lead.id) ?? []
+        ).map((record) => ({
+          status: record.status,
+          reason: record.override_reason,
+          notes: record.notes,
+          grantedAt: record.granted_at,
+          revokedAt: record.revoked_at,
+          revokeReason: record.revoke_reason,
+        })),
       } satisfies ManualValidationQueueItem;
     })
     .filter((lead) => {
