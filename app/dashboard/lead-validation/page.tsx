@@ -10,6 +10,7 @@ import {
 
 import {
   decideManualLeadValidationAction,
+  grantManualLeadValidationOverrideAction,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -263,6 +264,59 @@ export default async function ManualLeadValidationPage({
                           </p>
                         ) : null}
                       </div>
+                    ) : null}
+
+                    {lead.override ? (
+                      <div className="mt-4 rounded-xl border border-cyan-500/40 bg-cyan-500/10 p-4 text-sm">
+                        <p className="font-semibold text-cyan-200">
+                          Owner override active
+                        </p>
+                        <p className="mt-1 text-cyan-100/80">
+                          {lead.override.reason}
+                        </p>
+                        {lead.override.notes ? (
+                          <p className="mt-1 text-cyan-100/60">
+                            {lead.override.notes}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {lead.review &&
+                    ["hold", "rejected"].includes(
+                      lead.review.decision,
+                    ) &&
+                    !lead.override ? (
+                      <form
+                        action={grantManualLeadValidationOverrideAction}
+                        className="mt-4 space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4"
+                      >
+                        <input type="hidden" name="leadId" value={lead.id} />
+                        <p className="text-sm font-semibold text-amber-200">
+                          Owner override required for sales activity
+                        </p>
+                        <input
+                          required
+                          minLength={3}
+                          maxLength={500}
+                          name="reason"
+                          placeholder="Why should sales activity continue?"
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-500"
+                        />
+                        <textarea
+                          name="notes"
+                          maxLength={2000}
+                          rows={2}
+                          placeholder="Override context (optional)"
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-500"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-xl border border-cyan-500/60 px-4 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/10"
+                        >
+                          Grant owner override
+                        </button>
+                      </form>
                     ) : null}
                   </div>
 
