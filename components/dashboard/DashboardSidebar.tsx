@@ -35,6 +35,13 @@ const navigationItems: NavigationItem[] = [
     permission: "leads.view",
   },
   {
+    href: "/dashboard/lead-validation",
+    label: "Lead Validation",
+    description: "Manual qualification queue",
+    permission: "lead_validation.review",
+    exact: true,
+  },
+  {
     href: "/dashboard/site-visits",
     label: "Site Visits",
     description: "Property visit calendar and actions",
