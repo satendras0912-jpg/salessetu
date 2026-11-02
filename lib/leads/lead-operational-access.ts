@@ -347,13 +347,10 @@ export function buildLeadOperationalAccess({
           .completeSiteVisit,
       ),
 
-    canCancelSiteVisit:
-      hasAccess(
-        permissionCodes,
-        isOwner,
-        LEAD_OPERATIONAL_PERMISSIONS
-          .cancelSiteVisit,
-      ),
+    // Site-visit cancellation changes the customer commitment and is
+    // intentionally reserved for the workspace owner. Sales Agents retain
+    // their separate check-in and completion permissions.
+    canCancelSiteVisit: isOwner,
 
     canDeleteSiteVisit:
       hasAccess(
