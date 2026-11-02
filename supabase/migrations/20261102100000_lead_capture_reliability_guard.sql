@@ -22,6 +22,16 @@ alter table public.lead_capture_intake
   add constraint lead_capture_intake_processing_status_check
     check (processing_status in ('pending', 'processing', 'processed', 'retryable', 'failed'));
 
+update public.lead_capture_intake
+set
+  processing_status = 'processed',
+  processing_attempts = greatest(processing_attempts, 1),
+  last_attempt_at = coalesce(last_attempt_at, processed_at, received_at),
+  retry_after = null,
+  failure_code = null,
+  failure_detail = null
+where processed_lead_id is not null;
+
 alter table public.lead_capture_intake
   drop constraint if exists lead_capture_intake_processing_attempts_check,
   add constraint lead_capture_intake_processing_attempts_check
