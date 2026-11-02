@@ -15,13 +15,37 @@ export default async function SiteVisitWorklistPage({ searchParams }: { searchPa
   const filters = parseSiteVisitWorklistFilters(await searchParams);
   const result = await getSiteVisitWorklist(filters);
   const totalPages = Math.max(1, Math.ceil(result.total / SITE_VISIT_PAGE_SIZE));
+  const currentPageAgentCounts = new Map<string, number>();
+
+  for (const visit of result.visits) {
+    if (visit.assigned_agent_id) {
+      currentPageAgentCounts.set(
+        visit.assigned_agent_id,
+        (currentPageAgentCounts.get(visit.assigned_agent_id) ?? 0) + 1,
+      );
+    }
+  }
+
+  const agentSchedules = [
+    { id: "all", label: "All visits", count: result.visits.length },
+    ...result.agents.map((agent) => ({
+      id: agent.userId,
+      label: agent.agentCode ? `${agent.displayName} · ${agent.agentCode}` : agent.displayName,
+      count: currentPageAgentCounts.get(agent.userId) ?? 0,
+    })),
+    {
+      id: "unassigned",
+      label: "Unassigned",
+      count: result.visits.filter((visit) => !visit.assigned_agent_id).length,
+    },
+  ];
 
   return <div className="space-y-6">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-400">SalesSetu Operations</p>
         <h1 className="mt-3 text-3xl font-bold text-white">Site Visit Worklist</h1>
-        <p className="mt-3 max-w-3xl text-slate-400">GEO-wise property visit calendar and action queue. Open a visit to use the existing check-in, check-out, completion or cancellation controls.</p>
+        <p className="mt-3 max-w-3xl text-slate-400">Agent-wise property visit schedule and GEO action queue. Open a visit to use the existing check-in, check-out, completion or cancellation controls.</p>
       </div>
       <Link href="/dashboard/follow-ups/insights" className="inline-flex rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-cyan-100">Open follow-up insights</Link>
     </header>
@@ -30,12 +54,44 @@ export default async function SiteVisitWorklistPage({ searchParams }: { searchPa
       {SITE_VISIT_VIEWS.map((view) => <Link key={view} href={siteVisitWorklistHref({ ...filters, view, page: 1 })} aria-current={filters.view === view ? "page" : undefined} className={`${control} transition-colors ${filters.view === view ? "border-cyan-400 bg-cyan-400/15 font-semibold text-cyan-100" : "hover:border-slate-500 hover:bg-slate-800"}`}>{labels[view]}</Link>)}
     </nav>
 
+    <section aria-labelledby="agent-schedule-heading" className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 id="agent-schedule-heading" className="text-lg font-semibold text-white">Agent schedule</h2>
+          <p className="mt-1 text-sm text-slate-400">Current page workload for the selected view. Select an agent to open only their visits.</p>
+        </div>
+        <p className="text-xs text-slate-500">No automatic assignment or customer messaging</p>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {agentSchedules.map((agent) => {
+          const isSelected = filters.agent === agent.id;
+          return <Link
+            key={agent.id}
+            href={siteVisitWorklistHref({ ...filters, agent: agent.id, page: 1 })}
+            aria-current={isSelected ? "page" : undefined}
+            className={`rounded-xl border p-4 transition-colors ${isSelected ? "border-cyan-400 bg-cyan-400/10" : "border-slate-800 bg-slate-950/40 hover:border-slate-600"}`}
+          >
+            <p className="truncate text-sm font-medium text-slate-200">{agent.label}</p>
+            <p className="mt-2 text-2xl font-semibold text-white">{agent.count}</p>
+            <p className="mt-1 text-xs text-slate-500">scheduled on this page</p>
+          </Link>;
+        })}
+      </div>
+    </section>
+
     <form className="flex flex-wrap items-end gap-3" action="/dashboard/site-visits">
       <input type="hidden" name="view" value={filters.view} />
       <label className="grid gap-2 text-sm text-slate-400">GEO area
         <select name="geo" defaultValue={filters.geo} className={control}>
           <option value="all">All GEO areas</option><option value="mapping_required">GEO mapping required</option>
           {GEO_TAGS.map((tag) => <option key={tag} value={tag}>{GEO_TAG_LABELS[tag]}</option>)}
+        </select>
+      </label>
+      <label className="grid gap-2 text-sm text-slate-400">Agent schedule
+        <select name="agent" defaultValue={filters.agent} className={control}>
+          <option value="all">All agents</option>
+          <option value="unassigned">Unassigned visits</option>
+          {result.agents.map((agent) => <option key={agent.userId} value={agent.userId}>{agent.agentCode ? `${agent.displayName} · ${agent.agentCode}` : agent.displayName}</option>)}
         </select>
       </label>
       <button className={control} type="submit">Apply filter</button>
@@ -54,7 +110,7 @@ export default async function SiteVisitWorklistPage({ searchParams }: { searchPa
               <td className="max-w-sm px-5 py-4"><p className="font-semibold text-white">{visit.title}</p><p className="mt-1 text-slate-400">{[visit.leads.first_name, visit.leads.last_name].filter(Boolean).join(" ") || "Unnamed lead"} · {visit.project_name}</p></td>
               <td className="whitespace-nowrap px-5 py-4"><time dateTime={visit.scheduled_start_at}>{dateFormat.format(new Date(visit.scheduled_start_at))}</time>{overdue ? <p className="mt-1 text-amber-300">Overdue</p> : null}</td>
               <td className="px-5 py-4"><p className="capitalize text-slate-200">{visit.status.replaceAll("_", " ")}</p><p className="mt-1 capitalize text-slate-400">{visit.confirmation_status.replaceAll("_", " ")}</p></td>
-              <td className="px-5 py-4"><p>{visit.assigned_agent_id ? "Assigned" : "Unassigned"}</p><p className="mt-1 text-slate-400">{geoQueueLabel(visit.leads.geo_tag, visit.leads.preferred_location, visit.leads.preferred_city)}</p></td>
+              <td className="px-5 py-4"><p className="text-slate-200">{visit.assigned_agent_name ?? "Unassigned"}</p><p className="mt-1 text-slate-400">{geoQueueLabel(visit.leads.geo_tag, visit.leads.preferred_location, visit.leads.preferred_city)}</p></td>
               <td className="px-5 py-4"><Link className="whitespace-nowrap font-semibold text-cyan-300 hover:text-cyan-100" href={`/dashboard/leads/${visit.lead_id}#site-visit-${visit.id}`}>Open visit actions</Link></td>
             </tr>;
           })}</tbody>
