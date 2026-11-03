@@ -8,6 +8,7 @@ import {
 } from "next/navigation";
 
 import LeadDetailView from "@/components/leads/LeadDetailView";
+import LeadDealConversionCard from "@/components/leads/LeadDealConversionCard";
 import LeadAiCallDispatchCard from "@/components/leads/LeadAiCallDispatchCard";
 import LeadAiCallHistoryCard from "@/components/leads/LeadAiCallHistoryCard";
 import LeadAiQualificationCard from "@/components/leads/LeadAiQualificationCard";
@@ -29,6 +30,10 @@ import {
 import {
   getLeadDetail,
 } from "@/lib/leads/lead-detail-service";
+
+import {
+  getDealConversionEligibility,
+} from "@/lib/dealos/deal-conversion-service";
 
 import {
   getLeadAiQualification,
@@ -418,6 +423,19 @@ export default async function LeadDetailPage({
       "ai_calling.execute",
     );
 
+  const canCreateDeal =
+    isOwner ||
+    (
+      hasPermission(
+        permissionCodes,
+        "deals.view",
+      ) &&
+      hasPermission(
+        permissionCodes,
+        "deals.create",
+      )
+    );
+
   const detailAccess =
     buildLeadDetailAccess(
       permissionCodes,
@@ -458,6 +476,7 @@ export default async function LeadDetailPage({
   lead,
   operationalContext,
   aiQualification,
+  dealConversionEligibility,
 ] = await Promise.all([
     loadLeadDetail(
       organizationId,
@@ -475,6 +494,16 @@ export default async function LeadDetailPage({
       organizationId,
       cleanLeadId,
     ),
+
+    canCreateDeal
+      ? getDealConversionEligibility(
+          cleanLeadId,
+        )
+      : Promise.resolve({
+          isEligible: false,
+          message:
+            "You do not have permission to create deals for this workspace.",
+        }),
   ]);
 
   if (
@@ -593,6 +622,18 @@ export default async function LeadDetailPage({
         successMessage={successMessage}
         currentAssignment={
           leadDetailAssignment
+        }
+      />
+
+      <LeadDealConversionCard
+        leadId={lead.id}
+        siteVisits={lead.siteVisits}
+        canCreateDeal={canCreateDeal}
+        isEligibleForConversion={
+          dealConversionEligibility.isEligible
+        }
+        eligibilityMessage={
+          dealConversionEligibility.message
         }
       />
 
