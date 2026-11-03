@@ -1,0 +1,243 @@
+"use client";
+
+import Link from "next/link";
+
+import {
+  useActionState,
+} from "react";
+
+import {
+  createDealAction,
+} from "@/app/dashboard/deals/actions";
+
+import {
+  INITIAL_DEALOS_ACTION_STATE,
+} from "@/lib/dealos/deal-contract";
+
+import type {
+  LeadSiteVisitItem,
+  LeadValidationDetail,
+} from "@/types/lead-detail";
+
+type LeadDealConversionCardProps = {
+  leadId: string;
+  validation: LeadValidationDetail | null;
+  siteVisits: LeadSiteVisitItem[];
+  canCreateDeal: boolean;
+};
+
+function isCompletedVisit(
+  visit: LeadSiteVisitItem,
+): boolean {
+  return visit.status.trim().toLowerCase() === "completed";
+}
+
+function formatVisit(
+  visit: LeadSiteVisitItem,
+): string {
+  const project =
+    visit.projectName?.trim() ||
+    "Site visit";
+
+  const completedAt =
+    visit.visitCompletedAt
+      ? new Intl.DateTimeFormat(
+          "en-IN",
+          {
+            dateStyle: "medium",
+            timeStyle: "short",
+            timeZone: "Asia/Kolkata",
+          },
+        ).format(
+          new Date(
+            visit.visitCompletedAt,
+          ),
+        )
+      : "Completed";
+
+  return `${project} — ${completedAt}`;
+}
+
+export default function LeadDealConversionCard({
+  leadId,
+  validation,
+  siteVisits,
+  canCreateDeal,
+}: LeadDealConversionCardProps) {
+  const [
+    state,
+    formAction,
+    isPending,
+  ] = useActionState(
+    createDealAction,
+    INITIAL_DEALOS_ACTION_STATE,
+  );
+
+  const completedVisits =
+    siteVisits.filter(
+      isCompletedVisit,
+    );
+
+  const decision =
+    validation?.reviewDecision
+      ?.trim()
+      .toLowerCase() ??
+    "";
+
+  const hasOwnerOverride =
+    validation?.overridden === true;
+
+  const isApproved =
+    decision === "approved";
+
+  const requiresOwnerOverride =
+    decision === "hold" ||
+    decision === "rejected";
+
+  const mayConvert =
+    isApproved ||
+    (
+      requiresOwnerOverride &&
+      hasOwnerOverride
+    );
+
+  const canSubmit =
+    canCreateDeal &&
+    mayConvert &&
+    completedVisits.length > 0;
+
+  let guidance =
+    "Approve this lead in Lead Validation before creating a deal.";
+
+  if (!canCreateDeal) {
+    guidance =
+      "You do not have permission to create deals for this workspace.";
+  } else if (
+    requiresOwnerOverride &&
+    !hasOwnerOverride
+  ) {
+    guidance =
+      "This lead is on hold or rejected. A workspace owner must record an override before deal conversion.";
+  } else if (
+    mayConvert &&
+    completedVisits.length === 0
+  ) {
+    guidance =
+      "Complete a site visit before creating a deal.";
+  } else if (
+    requiresOwnerOverride &&
+    hasOwnerOverride
+  ) {
+    guidance =
+      "Owner override is active. A completed site visit is linked to this deal for an auditable conversion.";
+  } else if (isApproved) {
+    guidance =
+      "Manual validation is approved. Select the completed site visit to create the deal.";
+  }
+
+  return (
+    <section className="rounded-3xl border border-cyan-500/30 bg-cyan-500/5 p-6 sm:p-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-400">
+        Deal conversion
+      </p>
+
+      <h2 className="mt-3 text-2xl font-semibold text-white">
+        Move qualified lead into DealOS
+      </h2>
+
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+        Deal creation is gated by manual validation and a completed site visit.
+        This action does not auto-route the lead or notify the customer.
+      </p>
+
+      <div className="mt-5 rounded-2xl border border-slate-700 bg-slate-950/50 px-4 py-3 text-sm leading-6 text-slate-300">
+        {guidance}
+      </div>
+
+      {validation?.overrideReason ? (
+        <p className="mt-3 text-xs leading-5 text-amber-200">
+          Owner override reason: {validation.overrideReason}
+        </p>
+      ) : null}
+
+      {canSubmit ? (
+        <form
+          action={formAction}
+          className="mt-6 space-y-5"
+        >
+          <input
+            type="hidden"
+            name="leadId"
+            value={leadId}
+          />
+
+          <div>
+            <label
+              htmlFor="dealSiteVisitId"
+              className="mb-2 block text-sm font-medium text-slate-200"
+            >
+              Completed site visit
+            </label>
+
+            <select
+              id="dealSiteVisitId"
+              name="siteVisitId"
+              required
+              defaultValue=""
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+            >
+              <option
+                value=""
+                disabled
+              >
+                Select completed visit
+              </option>
+
+              {completedVisits.map(
+                (visit) => (
+                  <option
+                    key={visit.id}
+                    value={visit.id}
+                  >
+                    {formatVisit(visit)}
+                  </option>
+                ),
+              )}
+            </select>
+          </div>
+
+          {state.status !== "idle" &&
+          state.message ? (
+            <p
+              aria-live="polite"
+              className={
+                state.status === "success"
+                  ? "text-sm text-emerald-300"
+                  : "text-sm text-red-300"
+              }
+            >
+              {state.message}
+            </p>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={isPending}
+            className="inline-flex min-w-48 items-center justify-center rounded-xl bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isPending
+              ? "Creating deal..."
+              : "Create deal"}
+          </button>
+        </form>
+      ) : (
+        <Link
+          href="/dashboard/lead-validation"
+          className="mt-6 inline-flex rounded-xl border border-cyan-400/50 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300 hover:text-white"
+        >
+          Open Lead Validation
+        </Link>
+      )}
+    </section>
+  );
+}
