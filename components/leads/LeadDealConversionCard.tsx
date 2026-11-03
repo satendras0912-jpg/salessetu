@@ -16,14 +16,14 @@ import {
 
 import type {
   LeadSiteVisitItem,
-  LeadValidationDetail,
 } from "@/types/lead-detail";
 
 type LeadDealConversionCardProps = {
   leadId: string;
-  validation: LeadValidationDetail | null;
   siteVisits: LeadSiteVisitItem[];
   canCreateDeal: boolean;
+  isEligibleForConversion: boolean;
+  eligibilityMessage: string;
 };
 
 function isCompletedVisit(
@@ -60,9 +60,10 @@ function formatVisit(
 
 export default function LeadDealConversionCard({
   leadId,
-  validation,
   siteVisits,
   canCreateDeal,
+  isEligibleForConversion,
+  eligibilityMessage,
 }: LeadDealConversionCardProps) {
   const [
     state,
@@ -78,62 +79,19 @@ export default function LeadDealConversionCard({
       isCompletedVisit,
     );
 
-  const decision =
-    validation?.reviewDecision
-      ?.trim()
-      .toLowerCase() ??
-    "";
-
-  const hasOwnerOverride =
-    validation?.overridden === true;
-
-  const isApproved =
-    decision === "approved";
-
-  const requiresOwnerOverride =
-    decision === "hold" ||
-    decision === "rejected";
-
-  const mayConvert =
-    isApproved ||
-    (
-      requiresOwnerOverride &&
-      hasOwnerOverride
-    );
-
   const canSubmit =
     canCreateDeal &&
-    mayConvert &&
+    isEligibleForConversion &&
     completedVisits.length > 0;
 
-  let guidance =
-    "Approve this lead in Lead Validation before creating a deal.";
-
-  if (!canCreateDeal) {
-    guidance =
-      "You do not have permission to create deals for this workspace.";
-  } else if (
-    requiresOwnerOverride &&
-    !hasOwnerOverride
-  ) {
-    guidance =
-      "This lead is on hold or rejected. A workspace owner must record an override before deal conversion.";
-  } else if (
-    mayConvert &&
-    completedVisits.length === 0
-  ) {
-    guidance =
-      "Complete a site visit before creating a deal.";
-  } else if (
-    requiresOwnerOverride &&
-    hasOwnerOverride
-  ) {
-    guidance =
-      "Owner override is active. A completed site visit is linked to this deal for an auditable conversion.";
-  } else if (isApproved) {
-    guidance =
-      "Manual validation is approved. Select the completed site visit to create the deal.";
-  }
+  const guidance =
+    !canCreateDeal
+      ? "You do not have permission to create deals for this workspace."
+      : !isEligibleForConversion
+        ? eligibilityMessage
+        : completedVisits.length === 0
+          ? "Complete a site visit before creating a deal."
+          : eligibilityMessage;
 
   return (
     <section className="rounded-3xl border border-cyan-500/30 bg-cyan-500/5 p-6 sm:p-8">
@@ -153,12 +111,6 @@ export default function LeadDealConversionCard({
       <div className="mt-5 rounded-2xl border border-slate-700 bg-slate-950/50 px-4 py-3 text-sm leading-6 text-slate-300">
         {guidance}
       </div>
-
-      {validation?.overrideReason ? (
-        <p className="mt-3 text-xs leading-5 text-amber-200">
-          Owner override reason: {validation.overrideReason}
-        </p>
-      ) : null}
 
       {canSubmit ? (
         <form
