@@ -107,6 +107,105 @@ grant execute
 on function public.assert_deal_conversion_eligibility(uuid, uuid)
 to authenticated, service_role;
 
+
+create or replace function public.get_deal_conversion_eligibility(
+  requested_lead_id uuid
+)
+returns table (
+  is_eligible boolean,
+  message text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  target_lead public.leads;
+  latest_decision text;
+  has_active_override boolean;
+begin
+  if auth.uid() is null
+    and auth.role() <> 'service_role' then
+    raise exception 'Authentication is required';
+  end if;
+
+  select *
+  into target_lead
+  from public.leads lead
+  where lead.id = requested_lead_id
+    and lead.deleted_at is null;
+
+  if not found then
+    raise exception 'Lead not found' using errcode = 'P0002';
+  end if;
+
+  if auth.role() <> 'service_role'
+    and not public.has_organization_permission(
+      target_lead.organization_id,
+      'deals.create'
+    )
+    and not public.is_organization_owner(
+      target_lead.organization_id
+    ) then
+    raise exception 'Permission denied' using errcode = '42501';
+  end if;
+
+  select review.decision
+  into latest_decision
+  from public.lead_manual_validation_reviews review
+  where review.organization_id = target_lead.organization_id
+    and review.lead_id = target_lead.id
+  order by review.reviewed_at desc, review.id desc
+  limit 1;
+
+  select exists (
+    select 1
+    from public.lead_manual_validation_overrides override
+    where override.organization_id = target_lead.organization_id
+      and override.lead_id = target_lead.id
+      and override.status = 'active'
+  )
+  into has_active_override;
+
+  if latest_decision = 'approved' then
+    return query select
+      true,
+      'Manual validation is approved. Select a completed site visit to create the deal.';
+
+    return;
+  end if;
+
+  if latest_decision in ('hold', 'rejected')
+    and has_active_override then
+    return query select
+      true,
+      'An active owner override permits deal conversion after a completed site visit.';
+
+    return;
+  end if;
+
+  if latest_decision in ('hold', 'rejected') then
+    return query select
+      false,
+      'This lead is on hold or rejected. A workspace owner must record an override before deal conversion.';
+
+    return;
+  end if;
+
+  return query select
+    false,
+    'Approve this lead in Lead Validation before creating a deal.';
+end;
+$function$;
+
+revoke all
+on function public.get_deal_conversion_eligibility(uuid)
+from public;
+
+grant execute
+on function public.get_deal_conversion_eligibility(uuid)
+to authenticated, service_role;
+
 create or replace function public.enforce_deal_conversion_eligibility()
 returns trigger
 language plpgsql
