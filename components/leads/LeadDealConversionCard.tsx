@@ -184,10 +184,16 @@ export default function LeadDealConversionCard({
         </form>
       ) : (
         <Link
-          href="/dashboard/lead-validation"
+          href={
+            isEligibleForConversion
+              ? "/dashboard/site-visits"
+              : "/dashboard/lead-validation"
+          }
           className="mt-6 inline-flex rounded-xl border border-cyan-400/50 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300 hover:text-white"
         >
-          Open Lead Validation
+          {isEligibleForConversion
+            ? "Open Site Visits"
+            : "Open Lead Validation"}
         </Link>
       )}
     </section>
