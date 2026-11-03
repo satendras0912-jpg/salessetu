@@ -33,6 +33,10 @@ import {
   DEALOS_PERMISSIONS,
 } from "@/lib/dealos/deal-contract";
 
+import {
+  getCurrentDealOSAccessContext,
+} from "@/lib/dealos/deal-access";
+
 import type {
   DealOSActionState,
   DealOSFieldErrors,
@@ -1988,11 +1992,6 @@ export async function createDealAction(
 
   const { context } =
     await requirePermissionAccess({
-      allOf: [
-        DEALOS_PERMISSIONS.viewDeals,
-        DEALOS_PERMISSIONS.createDeal,
-      ],
-
       loginRedirectTo:
         "/login?next=/dashboard/deals",
 
@@ -2000,8 +1999,23 @@ export async function createDealAction(
         "/unauthorized",
     });
 
+  const dealAccessContext =
+    await getCurrentDealOSAccessContext();
+
+  if (
+    !dealAccessContext ||
+    dealAccessContext.organizationId !==
+      context.organization?.id ||
+    !dealAccessContext.access.canViewDeals ||
+    !dealAccessContext.access.canCreateDeal
+  ) {
+    return createErrorState(
+      "You do not have permission to perform this DealOS action.",
+    );
+  }
+
   const organizationId =
-    context.organization?.id?.trim();
+    dealAccessContext.organizationId.trim();
 
   if (!organizationId) {
     return createErrorState(
