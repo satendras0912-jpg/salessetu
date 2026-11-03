@@ -370,6 +370,7 @@ export default function LeadStatusTransitionForm({
                   {
                     dateStyle: "medium",
                     timeStyle: "short",
+                    timeZone: "Asia/Kolkata",
                   },
                 ).format(
                   new Date(
