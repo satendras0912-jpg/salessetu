@@ -8,6 +8,7 @@ import {
 } from "next/navigation";
 
 import LeadDetailView from "@/components/leads/LeadDetailView";
+import LeadDealConversionCard from "@/components/leads/LeadDealConversionCard";
 import LeadAiCallDispatchCard from "@/components/leads/LeadAiCallDispatchCard";
 import LeadAiCallHistoryCard from "@/components/leads/LeadAiCallHistoryCard";
 import LeadAiQualificationCard from "@/components/leads/LeadAiQualificationCard";
@@ -418,6 +419,19 @@ export default async function LeadDetailPage({
       "ai_calling.execute",
     );
 
+  const canCreateDeal =
+    isOwner ||
+    (
+      hasPermission(
+        permissionCodes,
+        "deals.view",
+      ) &&
+      hasPermission(
+        permissionCodes,
+        "deals.create",
+      )
+    );
+
   const detailAccess =
     buildLeadDetailAccess(
       permissionCodes,
@@ -594,6 +608,13 @@ export default async function LeadDetailPage({
         currentAssignment={
           leadDetailAssignment
         }
+      />
+
+      <LeadDealConversionCard
+        leadId={lead.id}
+        validation={lead.validation}
+        siteVisits={lead.siteVisits}
+        canCreateDeal={canCreateDeal}
       />
 
       <LeadAiQualificationCard
