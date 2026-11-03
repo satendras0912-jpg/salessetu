@@ -1911,18 +1911,13 @@ export async function cancelSiteVisit(
   const supabase =
     await createClient();
 
-  const scopedVisitResult =
-    await loadScopedSiteVisit(
-      supabase,
-      cleanOrganizationId,
-      cleanSiteVisitId,
-      "cancel",
-    );
-
-  if (!scopedVisitResult.ok) {
-    return scopedVisitResult.result;
-  }
-
+  /*
+   * Cancellation is authorised by the SECURITY DEFINER RPC itself. Do not
+   * pre-read the row through the caller's RLS policy: a workspace owner can
+   * own the organization without holding the role-level site_visits.view code.
+   * The RPC locks the row, verifies tenant ownership, and returns the mutated
+   * visit for this exact ID.
+   */
   const {
     data,
     error,
@@ -1951,7 +1946,6 @@ export async function cancelSiteVisit(
     parseMutationResult(
       data,
       cleanSiteVisitId,
-      scopedVisitResult.row.lead_id,
     );
 
   if (!result) {
