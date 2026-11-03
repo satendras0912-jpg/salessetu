@@ -32,6 +32,10 @@ import {
 } from "@/lib/leads/lead-detail-service";
 
 import {
+  getDealConversionEligibility,
+} from "@/lib/dealos/deal-conversion-service";
+
+import {
   getLeadAiQualification,
 } from "@/lib/ai-calling/qualification-display-service";
 
@@ -472,6 +476,7 @@ export default async function LeadDetailPage({
   lead,
   operationalContext,
   aiQualification,
+  dealConversionEligibility,
 ] = await Promise.all([
     loadLeadDetail(
       organizationId,
@@ -489,6 +494,16 @@ export default async function LeadDetailPage({
       organizationId,
       cleanLeadId,
     ),
+
+    canCreateDeal
+      ? getDealConversionEligibility(
+          cleanLeadId,
+        )
+      : Promise.resolve({
+          isEligible: false,
+          message:
+            "You do not have permission to create deals for this workspace.",
+        }),
   ]);
 
   if (
@@ -612,9 +627,14 @@ export default async function LeadDetailPage({
 
       <LeadDealConversionCard
         leadId={lead.id}
-        validation={lead.validation}
         siteVisits={lead.siteVisits}
         canCreateDeal={canCreateDeal}
+        isEligibleForConversion={
+          dealConversionEligibility.isEligible
+        }
+        eligibilityMessage={
+          dealConversionEligibility.message
+        }
       />
 
       <LeadAiQualificationCard
