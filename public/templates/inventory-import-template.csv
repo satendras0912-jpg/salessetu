@@ -1,0 +1,2 @@
+project_code,inventory_code,unit_number,property_type,unit_status,current_price,floor_number,bedrooms,super_area,source,verification_date,publication_status
+DEMO-PROJECT,DEMO-A-101,A-101,apartment,not_released,0,1,3,1500,Builder rate sheet,2026-11-04,internal
