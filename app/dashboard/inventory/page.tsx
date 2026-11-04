@@ -565,12 +565,22 @@ export default async function InventoryDashboardPage({
             </p>
           </div>
 
-          <Link
-            href="/dashboard/deals"
-            className="rounded-xl border border-cyan-500/50 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/10"
-          >
-            Open Deal Operations
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            {canCreateUnits ? (
+              <Link
+                href="/dashboard/inventory/import"
+                className="rounded-xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+              >
+                Import verified CSV
+              </Link>
+            ) : null}
+            <Link
+              href="/dashboard/deals"
+              className="rounded-xl border border-cyan-500/50 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-500/10"
+            >
+              Open Deal Operations
+            </Link>
+          </div>
         </div>
 
         <form
