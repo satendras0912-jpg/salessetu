@@ -122,6 +122,13 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/inventory",
+    label: "Inventory",
+    description: "Projects, units and availability",
+    permission: "inventory.view",
+    exact: true,
+  },
+  {
     href: "/dashboard/team",
     label: "Sales Agents",
     description: "Invite and manage your team",
