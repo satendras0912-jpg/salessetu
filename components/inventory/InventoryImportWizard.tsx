@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import type { ChangeEvent } from "react";
 
 import {
   importInventoryUnitsAction,
@@ -274,7 +275,7 @@ export default function InventoryImportWizard() {
     !isPending;
 
   function handleFileChange(
-    event: React.ChangeEvent<HTMLInputElement>,
+    event: ChangeEvent<HTMLInputElement>,
   ) {
     const file = event.target.files?.[0];
 
@@ -293,8 +294,8 @@ export default function InventoryImportWizard() {
       return;
     }
 
-    if (file.size > 1024 * 1024) {
-      setFileError("CSV must be 1 MB or smaller.");
+    if (file.size > 250 * 1024) {
+      setFileError("CSV must be 250 KB or smaller.");
       return;
     }
 
@@ -384,7 +385,7 @@ export default function InventoryImportWizard() {
             Choose verified inventory CSV
           </label>
           <p className="mt-1 text-sm text-slate-500">
-            Maximum 500 rows / 1 MB. Required: project, unit identity, source,
+            Maximum 500 rows / 250 KB. Required: project, unit identity, source,
             verification date and publication status.
           </p>
           <input
