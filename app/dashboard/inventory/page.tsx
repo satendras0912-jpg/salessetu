@@ -115,7 +115,7 @@ function noticeCopy(created: string): string | null {
 export default async function InventoryDashboardPage({
   searchParams,
 }: InventoryPageProps) {
-  const { context } = await requirePermissionAccess({
+  const { context, permissions } = await requirePermissionAccess({
     allOf: ["inventory.view"],
     loginRedirectTo: "/login?next=/dashboard/inventory",
     unauthorizedRedirectTo: "/unauthorized",
@@ -221,9 +221,22 @@ export default async function InventoryDashboardPage({
     0,
   );
 
+  const canManageBuilders =
+    permissions.isOwner ||
+    permissions.codes.includes("inventory.manage_builders");
+
+  const canManageProjects =
+    permissions.isOwner ||
+    permissions.codes.includes("inventory.manage_projects");
+
+  const canCreateUnits =
+    permissions.isOwner ||
+    permissions.codes.includes("inventory.create");
+
   const showForms =
-    context.membership?.isOwner ||
-    true;
+    canManageBuilders ||
+    canManageProjects ||
+    canCreateUnits;
 
   return (
     <div className="space-y-8">
@@ -298,6 +311,7 @@ export default async function InventoryDashboardPage({
 
       {showForms ? (
         <section className="grid gap-6 xl:grid-cols-3">
+          {canManageBuilders ? (
           <form
             action={createBuilderAction}
             className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6"
@@ -342,7 +356,19 @@ export default async function InventoryDashboardPage({
               Save builder
             </button>
           </form>
+          ) : (
+            <article className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                Step 1
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-white">Add builder</h2>
+              <p className="mt-4 text-sm leading-6 text-slate-400">
+                Builder creation requires inventory builder-management access.
+              </p>
+            </article>
+          )}
 
+          {canManageProjects ? (
           <form
             action={createProjectAction}
             className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6"
@@ -404,7 +430,19 @@ export default async function InventoryDashboardPage({
               Save project
             </button>
           </form>
+          ) : (
+            <article className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                Step 2
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-white">Add project</h2>
+              <p className="mt-4 text-sm leading-6 text-slate-400">
+                Project creation requires inventory project-management access.
+              </p>
+            </article>
+          )}
 
+          {canCreateUnits ? (
           <form
             action={createInventoryUnitAction}
             className="rounded-3xl border border-cyan-500/40 bg-slate-900/70 p-6"
@@ -501,6 +539,17 @@ export default async function InventoryDashboardPage({
               Save unit
             </button>
           </form>
+          ) : (
+            <article className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
+                Step 3
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-white">Add unit</h2>
+              <p className="mt-4 text-sm leading-6 text-slate-400">
+                Unit entry requires inventory creation access.
+              </p>
+            </article>
+          )}
         </section>
       ) : null}
 
