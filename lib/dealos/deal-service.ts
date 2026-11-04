@@ -421,6 +421,20 @@ export function mapDealOSDatabaseError(
   }
 
   if (
+    error.code === "23505" &&
+    normalizedMessage.includes(
+      "deals_one_active_per_site_visit_idx",
+    )
+  ) {
+    return {
+      ok: false,
+      code: "invalid_state",
+      message:
+        "An active deal already exists for this completed site visit.",
+    };
+  }
+
+  if (
   error.code === "23505" &&
   normalizedMessage.includes(
     "deal_commercial_approvals_pending_idx",
@@ -1840,40 +1854,34 @@ export async function createDeal(
   const {
     data,
     error,
-  } = await supabase
-    .from("deals")
-    .insert({
-      organization_id:
-        cleanOrganizationId,
-
-      lead_id:
+  } = await supabase.rpc(
+    "create_deal_from_qualified_visit",
+    {
+      requested_lead_id:
         cleanLeadId,
 
-      site_visit_id:
+      requested_site_visit_id:
         cleanSiteVisitId,
 
-      inventory_unit_id:
+      requested_inventory_unit_id:
         cleanInventoryUnitId,
 
-      assigned_to:
+      requested_assigned_to:
         cleanAssignedTo,
 
-      currency_code:
+      requested_currency_code:
         cleanCurrencyCode,
 
-      booking_probability:
+      requested_booking_probability:
         cleanBookingProbability,
 
-      next_action_at:
+      requested_next_action_at:
         cleanNextActionAt,
 
-      notes:
+      requested_notes:
         cleanNotes,
-    })
-    .select(
-      "id, lead_id, updated_at",
-    )
-    .single();
+    },
+  );
 
   if (error) {
     return mapDealOSDatabaseError(
