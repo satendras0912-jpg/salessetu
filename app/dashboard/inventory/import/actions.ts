@@ -87,6 +87,20 @@ function parseOptionalNumber(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
+function hasValidOptionalNumber(value: unknown): boolean {
+  if (value === null || value === undefined || value === "") {
+    return true;
+  }
+
+  if (typeof value !== "number" && typeof value !== "string") {
+    return false;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) && parsed >= 0;
+}
+
 function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     !Number.isNaN(Date.parse(`${value}T00:00:00.000Z`));
@@ -123,7 +137,11 @@ function normalizeRow(value: unknown): ImportRow | null {
     !allowedStatuses.has(unitStatus) ||
     !source ||
     !isIsoDate(verificationDate) ||
-    !allowedPublicationStatuses.has(publicationStatus)
+    !allowedPublicationStatuses.has(publicationStatus) ||
+    !hasValidOptionalNumber(raw.currentPrice) ||
+    !hasValidOptionalNumber(raw.floorNumber) ||
+    !hasValidOptionalNumber(raw.bedrooms) ||
+    !hasValidOptionalNumber(raw.superArea)
   ) {
     return null;
   }
