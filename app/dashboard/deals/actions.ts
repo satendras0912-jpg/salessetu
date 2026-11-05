@@ -37,6 +37,11 @@ import {
   getCurrentDealOSAccessContext,
 } from "@/lib/dealos/deal-access";
 
+import {
+  decideDealConversionRequest,
+  requestDealConversion,
+} from "@/lib/dealos/deal-conversion-service";
+
 import type {
   DealOSActionState,
   DealOSFieldErrors,
@@ -2063,6 +2068,106 @@ export async function createDealAction(
     `/dashboard/deals/${result.dealId}?dealCreated=1`,
     RedirectType.replace,
   );
+}
+
+export async function requestDealConversionAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    loginRedirectTo: "/login?next=/dashboard/leads",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+  const dealAccessContext = await getCurrentDealOSAccessContext();
+
+  if (
+    !dealAccessContext ||
+    dealAccessContext.organizationId !== context.organization?.id ||
+    !dealAccessContext.access.canCreateDeal
+  ) {
+    return createErrorState(
+      "You do not have permission to request a deal conversion.",
+    );
+  }
+
+  const leadId = normalizeSingleLine(getFormString(formData, "leadId"));
+  const siteVisitId = normalizeSingleLine(getFormString(formData, "siteVisitId"));
+  const rawNotes = normalizeMultiline(getFormString(formData, "notes"));
+  const notes = rawNotes || null;
+
+  if (!UUID_PATTERN.test(leadId) || !UUID_PATTERN.test(siteVisitId)) {
+    return createErrorState("Select a valid lead and completed site visit.");
+  }
+
+  if (notes && notes.length > 2_000) {
+    return createErrorState("Request notes cannot exceed 2,000 characters.");
+  }
+
+  const result = await requestDealConversion(leadId, siteVisitId, notes);
+
+  if (!result.ok) {
+    return createErrorState(result.message);
+  }
+
+  revalidatePath(`/dashboard/leads/${leadId}`);
+  revalidatePath("/dashboard/deals");
+
+  return {
+    status: "success",
+    message: "Deal conversion request sent for owner approval. No deal, reservation, routing or customer notification was created.",
+    fieldErrors: {},
+  };
+}
+
+export async function decideDealConversionRequestAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+  const { context } = await requirePermissionAccess({
+    loginRedirectTo: "/login?next=/dashboard/deals/conversions",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+  const permissionContext = await getCurrentDealOSAccessContext();
+  const requestId = normalizeSingleLine(getFormString(formData, "requestId"));
+  const decision = normalizeSingleLine(getFormString(formData, "decision"));
+  const reason = normalizeMultiline(getFormString(formData, "reason"));
+
+  if (!context.organization?.id || !permissionContext || !UUID_PATTERN.test(requestId)) {
+    return createErrorState("Select a valid deal conversion request.");
+  }
+
+  // Database RPC repeats the owner check. This application guard only avoids a
+  // misleading submit attempt for users without DealOS access.
+  if (!permissionContext.access.canCreateDeal) {
+    return createErrorState("You do not have permission to decide deal conversions.");
+  }
+
+  if ((decision !== "approved" && decision !== "rejected") || reason.length < 3 || reason.length > 500) {
+    return createErrorState("Choose approve or reject and provide a reason between 3 and 500 characters.");
+  }
+
+  const result = await decideDealConversionRequest(
+    requestId,
+    decision,
+    reason,
+  );
+
+  if (!result.ok) return createErrorState(result.message);
+
+  revalidatePath("/dashboard/deals");
+  revalidatePath("/dashboard/deals/conversions");
+
+  return {
+    status: "success",
+    message: result.dealId
+      ? "Owner approval recorded and DealOS deal created. No reservation, routing or customer notification was triggered."
+      : "Owner rejection recorded. No deal was created.",
+    fieldErrors: {},
+    dealId: result.dealId ?? undefined,
+  };
 }
 
 export async function updateDealAction(
