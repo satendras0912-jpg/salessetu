@@ -2,14 +2,12 @@
 
 import {
   useActionState,
-  useEffect,
 } from "react";
-import { useRouter } from "next/navigation";
 
 import {
   decideLeadInventoryMatchAction,
-  INITIAL_INVENTORY_MATCH_REVIEW_STATE,
 } from "@/app/dashboard/leads/[leadId]/inventory-match-actions";
+import { INITIAL_INVENTORY_MATCH_REVIEW_STATE } from "@/lib/inventory/lead-inventory-match-review-contract";
 
 type InventoryMatchReviewFormProps = {
   leadId: string;
@@ -26,17 +24,10 @@ export default function InventoryMatchReviewForm({
   initialReason,
   initialNotes,
 }: InventoryMatchReviewFormProps) {
-  const router = useRouter();
   const [state, formAction, isPending] = useActionState(
     decideLeadInventoryMatchAction,
     INITIAL_INVENTORY_MATCH_REVIEW_STATE,
   );
-
-  useEffect(() => {
-    if (state.status === "success") {
-      router.refresh();
-    }
-  }, [router, state.status]);
 
   return (
     <form action={formAction} className="mt-4 space-y-3">

@@ -3,18 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { requirePermissionAccess } from "@/lib/auth/access-control";
+import type { InventoryMatchReviewActionState } from "@/lib/inventory/lead-inventory-match-review-contract";
 import { LEAD_FORM_PERMISSIONS } from "@/lib/leads/lead-form-contract";
 import { createClient } from "@/lib/supabase/server";
-
-export type InventoryMatchReviewActionState = {
-  status: "idle" | "error" | "success";
-  message: string | null;
-};
-
-export const INITIAL_INVENTORY_MATCH_REVIEW_STATE: InventoryMatchReviewActionState = {
-  status: "idle",
-  message: null,
-};
 
 export async function decideLeadInventoryMatchAction(
   previousState: InventoryMatchReviewActionState,
@@ -66,32 +57,45 @@ export async function decideLeadInventoryMatchAction(
     unauthorizedRedirectTo: "/unauthorized",
   });
 
-  const supabase = await createClient();
-  const { error } = await supabase.rpc(
-    "decide_lead_inventory_match_review",
-    {
-      p_lead_id: leadId,
-      p_inventory_unit_id: inventoryUnitId,
-      p_decision: decision,
-      p_reason: reason,
-      p_notes: notes || null,
-    },
-  );
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc(
+      "decide_lead_inventory_match_review",
+      {
+        p_lead_id: leadId,
+        p_inventory_unit_id: inventoryUnitId,
+        p_decision: decision,
+        p_reason: reason,
+        p_notes: notes || null,
+      },
+    );
 
-  if (error) {
+    if (error) {
+      return {
+        status: "error",
+        message: `Review was not saved: ${error.message}`,
+      };
+    }
+
+    revalidatePath("/dashboard/leads");
+    revalidatePath(`/dashboard/leads/${leadId}`);
+
+    return {
+      status: "success",
+      message: decision === "not_suitable"
+        ? "Inventory suggestion marked not suitable."
+        : "Inventory suggestion marked suitable.",
+    };
+  } catch (error) {
+    console.error("Inventory match review action failed", {
+      leadId,
+      inventoryUnitId,
+      error,
+    });
+
     return {
       status: "error",
-      message: `Review was not saved: ${error.message}`,
+      message: "Review could not be saved. No operational records were changed.",
     };
   }
-
-  revalidatePath("/dashboard/leads");
-  revalidatePath(`/dashboard/leads/${leadId}`);
-
-  return {
-    status: "success",
-    message: decision === "not_suitable"
-      ? "Inventory suggestion marked not suitable."
-      : "Inventory suggestion marked suitable.",
-  };
 }
