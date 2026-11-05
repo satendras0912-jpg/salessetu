@@ -13,6 +13,7 @@ import LeadAiCallDispatchCard from "@/components/leads/LeadAiCallDispatchCard";
 import LeadAiCallHistoryCard from "@/components/leads/LeadAiCallHistoryCard";
 import LeadAiQualificationCard from "@/components/leads/LeadAiQualificationCard";
 import LeadOperationalOverview from "@/components/leads/LeadOperationalOverview";
+import LeadInventoryMatchSuggestions from "@/components/leads/LeadInventoryMatchSuggestions";
 
 import {
   requirePermissionAccess,
@@ -42,6 +43,10 @@ import {
 import {
   getLeadOperationalContext,
 } from "@/lib/leads/lead-operational-context-service";
+
+import {
+  getLeadInventoryMatchSuggestions,
+} from "@/lib/inventory/lead-inventory-match-service";
 
 import {
   createClient,
@@ -436,6 +441,12 @@ export default async function LeadDetailPage({
       )
     );
 
+  const canViewInventorySuggestions =
+    isOwner || hasPermission(
+      permissionCodes,
+      "inventory.view",
+    );
+
   const detailAccess =
     buildLeadDetailAccess(
       permissionCodes,
@@ -512,6 +523,24 @@ export default async function LeadDetailPage({
   ) {
     notFound();
   }
+
+  const inventorySuggestions =
+    canViewInventorySuggestions
+      ? await getLeadInventoryMatchSuggestions(
+          organizationId,
+          lead,
+        )
+      : [];
+
+  const hasInventoryMatchRequirements = Boolean(
+    lead.preferredProject?.trim() ||
+    lead.preferredLocation?.trim() ||
+    lead.preferredCity?.trim() ||
+    lead.propertyType?.trim() ||
+    lead.bedrooms !== null ||
+    lead.budgetMin !== null ||
+    lead.budgetMax !== null,
+  );
 
   const operationalAccess =
     buildLeadOperationalAccess({
@@ -640,6 +669,13 @@ export default async function LeadDetailPage({
       <LeadAiQualificationCard
         qualification={aiQualification}
       />
+
+      {canViewInventorySuggestions ? (
+        <LeadInventoryMatchSuggestions
+          suggestions={inventorySuggestions}
+          hasRequirements={hasInventoryMatchRequirements}
+        />
+      ) : null}
 
       {detailAccess.canViewAiCalls ? (
         <LeadAiCallHistoryCard
