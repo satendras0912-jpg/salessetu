@@ -1,8 +1,13 @@
 import type { LeadInventoryMatchSuggestion } from "@/lib/inventory/lead-inventory-match-service";
+import type { LeadInventoryMatchReview } from "@/lib/inventory/lead-inventory-match-review-service";
+import { decideLeadInventoryMatchAction } from "@/app/dashboard/leads/[leadId]/inventory-match-actions";
 
 type LeadInventoryMatchSuggestionsProps = {
+  leadId: string;
   suggestions: LeadInventoryMatchSuggestion[];
   hasRequirements: boolean;
+  reviews: LeadInventoryMatchReview[];
+  canReview: boolean;
 };
 
 function formatLabel(value: string): string {
@@ -41,10 +46,29 @@ function formatVerificationDate(value: string): string {
     }).format(date);
 }
 
+function formatReviewDate(value: string): string {
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? "Recorded"
+    : new Intl.DateTimeFormat("en-IN", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Kolkata",
+    }).format(date);
+}
+
 export default function LeadInventoryMatchSuggestions({
+  leadId,
   suggestions,
   hasRequirements,
+  reviews,
+  canReview,
 }: LeadInventoryMatchSuggestionsProps) {
+  const reviewsByInventoryUnitId = new Map(
+    reviews.map((review) => [review.inventoryUnitId, review]),
+  );
+
   return (
     <section className="rounded-3xl border border-cyan-500/25 bg-slate-900/70 p-6 sm:p-8">
       <header className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
@@ -83,11 +107,16 @@ export default function LeadInventoryMatchSuggestions({
 
       {suggestions.length > 0 ? (
         <div className="mt-6 grid gap-4 xl:grid-cols-2">
-          {suggestions.map((suggestion) => (
-            <article
-              key={suggestion.inventoryUnitId}
-              className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5"
-            >
+          {suggestions.map((suggestion) => {
+            const review = reviewsByInventoryUnitId.get(
+              suggestion.inventoryUnitId,
+            );
+
+            return (
+              <article
+                key={suggestion.inventoryUnitId}
+                className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5"
+              >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-semibold text-white">
@@ -142,7 +171,7 @@ export default function LeadInventoryMatchSuggestions({
                 </div>
               </dl>
 
-              <div className="mt-5 border-t border-slate-800 pt-4">
+                <div className="mt-5 border-t border-slate-800 pt-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Why it matched
                 </p>
@@ -159,9 +188,92 @@ export default function LeadInventoryMatchSuggestions({
                 <p className="mt-3 text-xs text-slate-500">
                   Source: {suggestion.source} · Manual follow-up only
                 </p>
-              </div>
-            </article>
-          ))}
+                </div>
+
+                <div className="mt-5 border-t border-slate-800 pt-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Manual match review
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Internal audit only. This does not assign a lead, reserve a
+                    unit, route work, create an alert or contact a customer.
+                  </p>
+
+                  {review ? (
+                    <div className="mt-3 rounded-xl border border-slate-700 bg-slate-900/70 p-3 text-sm">
+                      <p className="font-semibold text-slate-100">
+                        {review.decision === "suitable"
+                          ? "Marked suitable"
+                          : "Marked not suitable"}
+                      </p>
+                      <p className="mt-1 text-slate-300">{review.reason}</p>
+                      {review.notes ? (
+                        <p className="mt-1 text-slate-400">{review.notes}</p>
+                      ) : null}
+                      <p className="mt-2 text-xs text-slate-500">
+                        Recorded {formatReviewDate(review.reviewedAt)}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {canReview ? (
+                    <form
+                      action={decideLeadInventoryMatchAction}
+                      className="mt-4 space-y-3"
+                    >
+                      <input name="leadId" type="hidden" value={leadId} />
+                      <input
+                        name="inventoryUnitId"
+                        type="hidden"
+                        value={suggestion.inventoryUnitId}
+                      />
+                      <input
+                        aria-label={`Review reason for ${suggestion.inventoryCode}`}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
+                        defaultValue={review?.reason ?? ""}
+                        maxLength={500}
+                        minLength={3}
+                        name="reason"
+                        placeholder="Why is this unit suitable or not suitable?"
+                        required
+                      />
+                      <textarea
+                        aria-label={`Internal review note for ${suggestion.inventoryCode}`}
+                        className="min-h-20 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
+                        defaultValue={review?.notes ?? ""}
+                        maxLength={2000}
+                        name="notes"
+                        placeholder="Internal note (optional)"
+                      />
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+                          name="decision"
+                          type="submit"
+                          value="suitable"
+                        >
+                          Suitable
+                        </button>
+                        <button
+                          className="rounded-xl border border-amber-500/70 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/10"
+                          name="decision"
+                          type="submit"
+                          value="not_suitable"
+                        >
+                          Not suitable
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-500">
+                      You have view access, but not permission to record a
+                      manual match review.
+                    </p>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : null}
     </section>
