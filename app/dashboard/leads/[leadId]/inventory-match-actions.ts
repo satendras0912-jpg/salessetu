@@ -1,29 +1,27 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { requirePermissionAccess } from "@/lib/auth/access-control";
 import { LEAD_FORM_PERMISSIONS } from "@/lib/leads/lead-form-contract";
 import { createClient } from "@/lib/supabase/server";
 
-function pageHref(
-  leadId: string,
-  state: "reviewed" | "error",
-  detail: string,
-): string {
-  const query = new URLSearchParams({
-    matchReview: state === "reviewed" ? "1" : "",
-    matchReviewDecision: detail,
-    matchReviewError: state === "error" ? "1" : "",
-  });
+export type InventoryMatchReviewActionState = {
+  status: "idle" | "error" | "success";
+  message: string | null;
+};
 
-  return `/dashboard/leads/${leadId}?${query.toString()}`;
-}
+export const INITIAL_INVENTORY_MATCH_REVIEW_STATE: InventoryMatchReviewActionState = {
+  status: "idle",
+  message: null,
+};
 
 export async function decideLeadInventoryMatchAction(
+  previousState: InventoryMatchReviewActionState,
   formData: FormData,
-): Promise<void> {
+): Promise<InventoryMatchReviewActionState> {
+  void previousState;
+
   const leadId = String(formData.get("leadId") ?? "").trim();
   const inventoryUnitId = String(formData.get("inventoryUnitId") ?? "").trim();
   const decision = String(formData.get("decision") ?? "").trim().toLowerCase();
@@ -31,19 +29,31 @@ export async function decideLeadInventoryMatchAction(
   const notes = String(formData.get("notes") ?? "").trim();
 
   if (!leadId || !inventoryUnitId) {
-    redirect("/dashboard/leads?matchReviewError=1");
+    return {
+      status: "error",
+      message: "A valid lead and inventory unit are required.",
+    };
   }
 
   if (!["suitable", "not_suitable"].includes(decision)) {
-    redirect(pageHref(leadId, "error", "Select a valid review decision."));
+    return {
+      status: "error",
+      message: "Select a valid review decision.",
+    };
   }
 
   if (reason.length < 3 || reason.length > 500) {
-    redirect(pageHref(leadId, "error", "Reason must contain between 3 and 500 characters."));
+    return {
+      status: "error",
+      message: "Reason must contain between 3 and 500 characters.",
+    };
   }
 
   if (notes.length > 2000) {
-    redirect(pageHref(leadId, "error", "Notes cannot exceed 2000 characters."));
+    return {
+      status: "error",
+      message: "Notes cannot exceed 2000 characters.",
+    };
   }
 
   await requirePermissionAccess({
@@ -69,11 +79,19 @@ export async function decideLeadInventoryMatchAction(
   );
 
   if (error) {
-    redirect(pageHref(leadId, "error", error.message));
+    return {
+      status: "error",
+      message: `Review was not saved: ${error.message}`,
+    };
   }
 
   revalidatePath("/dashboard/leads");
   revalidatePath(`/dashboard/leads/${leadId}`);
 
-  redirect(pageHref(leadId, "reviewed", decision));
+  return {
+    status: "success",
+    message: decision === "not_suitable"
+      ? "Inventory suggestion marked not suitable."
+      : "Inventory suggestion marked suitable.",
+  };
 }
