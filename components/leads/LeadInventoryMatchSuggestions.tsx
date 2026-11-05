@@ -1,6 +1,6 @@
 import type { LeadInventoryMatchSuggestion } from "@/lib/inventory/lead-inventory-match-service";
 import type { LeadInventoryMatchReview } from "@/lib/inventory/lead-inventory-match-review-service";
-import { decideLeadInventoryMatchAction } from "@/app/dashboard/leads/[leadId]/inventory-match-actions";
+import InventoryMatchReviewForm from "@/components/leads/InventoryMatchReviewForm";
 
 type LeadInventoryMatchSuggestionsProps = {
   leadId: string;
@@ -217,53 +217,13 @@ export default function LeadInventoryMatchSuggestions({
                   ) : null}
 
                   {canReview ? (
-                    <form
-                      action={decideLeadInventoryMatchAction}
-                      className="mt-4 space-y-3"
-                    >
-                      <input name="leadId" type="hidden" value={leadId} />
-                      <input
-                        name="inventoryUnitId"
-                        type="hidden"
-                        value={suggestion.inventoryUnitId}
-                      />
-                      <input
-                        aria-label={`Review reason for ${suggestion.inventoryCode}`}
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
-                        defaultValue={review?.reason ?? ""}
-                        maxLength={500}
-                        minLength={3}
-                        name="reason"
-                        placeholder="Why is this unit suitable or not suitable?"
-                        required
-                      />
-                      <textarea
-                        aria-label={`Internal review note for ${suggestion.inventoryCode}`}
-                        className="min-h-20 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400"
-                        defaultValue={review?.notes ?? ""}
-                        maxLength={2000}
-                        name="notes"
-                        placeholder="Internal note (optional)"
-                      />
-                      <div className="flex flex-wrap gap-3">
-                        <button
-                          className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
-                          name="decision"
-                          type="submit"
-                          value="suitable"
-                        >
-                          Suitable
-                        </button>
-                        <button
-                          className="rounded-xl border border-amber-500/70 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/10"
-                          name="decision"
-                          type="submit"
-                          value="not_suitable"
-                        >
-                          Not suitable
-                        </button>
-                      </div>
-                    </form>
+                    <InventoryMatchReviewForm
+                      initialNotes={review?.notes ?? ""}
+                      initialReason={review?.reason ?? ""}
+                      inventoryCode={suggestion.inventoryCode}
+                      inventoryUnitId={suggestion.inventoryUnitId}
+                      leadId={leadId}
+                    />
                   ) : (
                     <p className="mt-3 text-sm text-slate-500">
                       You have view access, but not permission to record a
