@@ -640,9 +640,9 @@ export default function DealLifecycleActions({
               </p>
 
               <p className="mt-1 text-xs leading-5 text-slate-400">
-                Booking is linked. Finalize
-                this booking-ready deal as
-                won.
+                A linked, confirmed booking is required
+                before this booking-ready deal can be
+                finalized as won.
               </p>
             </div>
 
