@@ -2632,7 +2632,7 @@ export async function reserveBookingInventoryAction(
     getFormString(formData, "dealId"),
   );
   const expiryInput = normalizeSingleLine(
-    getFormString(formData, "expiresAt"),
+    getFormString(formData, "expiresAtUtc"),
   );
   const notes = normalizeMultiline(
     getFormString(formData, "reservationNotes"),
@@ -2644,8 +2644,15 @@ export async function reserveBookingInventoryAction(
   }
 
   const expiresAt = new Date(expiryInput);
-  if (!expiryInput || Number.isNaN(expiresAt.getTime())) {
-    addFieldError(fieldErrors, "expiresAt", "Choose a valid reservation expiry.");
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(expiryInput) ||
+    Number.isNaN(expiresAt.getTime())
+  ) {
+    addFieldError(
+      fieldErrors,
+      "expiresAt",
+      "Choose a valid reservation expiry in your local time.",
+    );
   } else if (expiresAt.getTime() <= Date.now()) {
     addFieldError(fieldErrors, "expiresAt", "Reservation expiry must be in the future.");
   }
