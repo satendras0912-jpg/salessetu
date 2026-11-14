@@ -401,4 +401,6 @@ begin
 end;
 $$;
 
+select pg_notify('pgrst', 'reload schema');
+
 commit;
