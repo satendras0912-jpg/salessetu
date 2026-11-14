@@ -112,6 +112,22 @@ function getSuccessMessage(
 
   if (
     getSingleValue(
+      searchParams.bookingReservation,
+    ) === "1"
+  ) {
+    return "Inventory reserved for this draft booking. No payment, customer, routing or notification was created.";
+  }
+
+  if (
+    getSingleValue(
+      searchParams.bookingReservationReleased,
+    ) === "1"
+  ) {
+    return "Booking inventory reservation released successfully.";
+  }
+
+  if (
+    getSingleValue(
       searchParams.dealWon,
     ) === "1"
   ) {
@@ -316,6 +332,7 @@ export default async function DealDetailPage({
         statusHistoryResult.data
       }
       access={access}
+      isOwner={Boolean(context.membership?.isOwner)}
       currentUserId={
   context.user.id
 }

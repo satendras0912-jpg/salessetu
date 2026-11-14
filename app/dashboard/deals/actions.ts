@@ -14,6 +14,7 @@ import {
   cancelCommercialApproval,
   cancelDeal,
   changeDealStatus,
+  createDealOSClient,
   createDeal,
   createDealOffer,
   decideCommercialApproval,
@@ -2599,6 +2600,159 @@ export async function linkDealBookingAction(
 
   redirect(
     `/dashboard/deals/${dealId}?bookingLinked=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function reserveBookingInventoryAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        DEALOS_PERMISSIONS.viewDeals,
+      ],
+      loginRedirectTo: "/login?next=/dashboard/deals",
+      unauthorizedRedirectTo: "/unauthorized",
+    });
+
+  if (!context.membership?.isOwner) {
+    return createErrorState(
+      "Only the workspace owner can reserve inventory for a booking.",
+    );
+  }
+
+  const bookingId = normalizeSingleLine(
+    getFormString(formData, "bookingId"),
+  );
+  const dealId = normalizeSingleLine(
+    getFormString(formData, "dealId"),
+  );
+  const expiryInput = normalizeSingleLine(
+    getFormString(formData, "expiresAt"),
+  );
+  const notes = normalizeMultiline(
+    getFormString(formData, "reservationNotes"),
+  );
+  const fieldErrors: DealOSFieldErrors = {};
+
+  if (!UUID_PATTERN.test(bookingId)) {
+    addFieldError(fieldErrors, "bookingId", "A valid booking is required.");
+  }
+
+  const expiresAt = new Date(expiryInput);
+  if (!expiryInput || Number.isNaN(expiresAt.getTime())) {
+    addFieldError(fieldErrors, "expiresAt", "Choose a valid reservation expiry.");
+  } else if (expiresAt.getTime() <= Date.now()) {
+    addFieldError(fieldErrors, "expiresAt", "Reservation expiry must be in the future.");
+  }
+
+  if (notes.length > 1000) {
+    addFieldError(fieldErrors, "reservationNotes", "Notes cannot exceed 1000 characters.");
+  }
+
+  if (hasFieldErrors(fieldErrors)) {
+    return createErrorState(
+      "Please correct the highlighted reservation fields.",
+      fieldErrors,
+    );
+  }
+
+  const supabase = await createDealOSClient();
+  const { error } = await supabase.rpc(
+    "reserve_booking_inventory",
+    {
+      requested_booking_id: bookingId,
+      requested_expires_at: expiresAt.toISOString(),
+      requested_notes: notes || null,
+    },
+  );
+
+  if (error) {
+    return createErrorState(
+      error.message || "The inventory reservation could not be created.",
+    );
+  }
+
+  revalidateDealOSPaths(dealId);
+  redirect(
+    `/dashboard/deals/${dealId}?bookingReservation=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function releaseBookingInventoryReservationAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } =
+    await requirePermissionAccess({
+      allOf: [
+        DEALOS_PERMISSIONS.viewDeals,
+      ],
+      loginRedirectTo: "/login?next=/dashboard/deals",
+      unauthorizedRedirectTo: "/unauthorized",
+    });
+
+  if (!context.membership?.isOwner) {
+    return createErrorState(
+      "Only the workspace owner can release a booking inventory reservation.",
+    );
+  }
+
+  const bookingId = normalizeSingleLine(
+    getFormString(formData, "bookingId"),
+  );
+  const dealId = normalizeSingleLine(
+    getFormString(formData, "dealId"),
+  );
+  const reason = normalizeMultiline(
+    getFormString(formData, "releaseReason"),
+  );
+  const fieldErrors: DealOSFieldErrors = {};
+
+  if (!UUID_PATTERN.test(bookingId)) {
+    addFieldError(fieldErrors, "bookingId", "A valid booking is required.");
+  }
+
+  if (reason.length < 3) {
+    addFieldError(fieldErrors, "releaseReason", "Enter a short release reason.");
+  }
+
+  if (reason.length > 1000) {
+    addFieldError(fieldErrors, "releaseReason", "Reason cannot exceed 1000 characters.");
+  }
+
+  if (hasFieldErrors(fieldErrors)) {
+    return createErrorState(
+      "Please correct the highlighted release fields.",
+      fieldErrors,
+    );
+  }
+
+  const supabase = await createDealOSClient();
+  const { error } = await supabase.rpc(
+    "release_booking_inventory_reservation",
+    {
+      requested_booking_id: bookingId,
+      requested_reason: reason,
+    },
+  );
+
+  if (error) {
+    return createErrorState(
+      error.message || "The inventory reservation could not be released.",
+    );
+  }
+
+  revalidateDealOSPaths(dealId);
+  redirect(
+    `/dashboard/deals/${dealId}?bookingReservationReleased=1`,
     RedirectType.replace,
   );
 }
