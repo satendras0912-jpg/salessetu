@@ -2,6 +2,7 @@
 
 import {
   useActionState,
+  useRef,
 } from "react";
 
 import {
@@ -129,6 +130,11 @@ export default function DealLifecycleActions({
   access,
   isOwner,
 }: DealLifecycleActionsProps) {
+  const reservationExpiryInputRef =
+    useRef<HTMLInputElement>(null);
+  const reservationExpiryUtcInputRef =
+    useRef<HTMLInputElement>(null);
+
   const [
     lostState,
     lostAction,
@@ -234,6 +240,26 @@ export default function DealLifecycleActions({
     isOwner &&
     deal.status === "booking_ready" &&
     Boolean(deal.bookingId);
+
+  function serializeReservationExpiry(): void {
+    const localExpiry =
+      reservationExpiryInputRef.current?.value ?? "";
+    const utcExpiryInput =
+      reservationExpiryUtcInputRef.current;
+
+    if (!utcExpiryInput) {
+      return;
+    }
+
+    const localExpiryDate =
+      new Date(localExpiry);
+
+    utcExpiryInput.value =
+      localExpiry &&
+      !Number.isNaN(localExpiryDate.getTime())
+        ? localExpiryDate.toISOString()
+        : "";
+  }
 
   const hasAvailableActions =
     canPutOnHold ||
@@ -660,11 +686,17 @@ export default function DealLifecycleActions({
 
             <form
               action={reservationAction}
+              onSubmit={serializeReservationExpiry}
               noValidate
               className="grid gap-4 rounded-xl border border-violet-500/20 bg-slate-950/45 p-4 lg:grid-cols-2"
             >
               <input type="hidden" name="dealId" value={deal.id} />
               <input type="hidden" name="bookingId" value={deal.bookingId ?? ""} />
+              <input
+                ref={reservationExpiryUtcInputRef}
+                type="hidden"
+                name="expiresAtUtc"
+              />
 
               <div>
                 <label htmlFor="bookingReservationExpiry" className="mb-2 block text-sm font-medium text-slate-300">
@@ -674,6 +706,7 @@ export default function DealLifecycleActions({
                   id="bookingReservationExpiry"
                   name="expiresAt"
                   type="datetime-local"
+                  ref={reservationExpiryInputRef}
                   required
                   aria-invalid={Boolean(reservationState.fieldErrors.expiresAt)}
                   className={getInputClass(Boolean(reservationState.fieldErrors.expiresAt))}
