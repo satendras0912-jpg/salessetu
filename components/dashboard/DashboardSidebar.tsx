@@ -17,6 +17,7 @@ type NavigationItem = {
   description: string;
   permission?: string;
   additionalPermission?: string;
+  ownerOnly?: boolean;
   exact?: boolean;
 };
 
@@ -129,6 +130,14 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/deals/reservations",
+    label: "Reservation Alerts",
+    description: "Booking holds and unit release health",
+    permission: "inventory.view",
+    ownerOnly: true,
+    exact: true,
+  },
+  {
     href: "/dashboard/team",
     label: "Sales Agents",
     description: "Invite and manage your team",
@@ -202,6 +211,10 @@ export default function DashboardSidebar({
   const pathname = usePathname();
 
   const canAccess = (item: NavigationItem): boolean => {
+    if (item.ownerOnly && !isOwner) {
+      return false;
+    }
+
     if (isOwner || !item.permission) {
       return true;
     }
