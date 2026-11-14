@@ -37,6 +37,8 @@ type DealDetailViewProps = {
 
   access: DealOSDataAccess;
 
+  isOwner: boolean;
+
   currentUserId: string;
 
   successMessage?:
@@ -301,6 +303,7 @@ export default function DealDetailView({
   approvals,
   statusHistory,
   access,
+  isOwner,
   currentUserId,
   successMessage,
 }: DealDetailViewProps) {
@@ -468,6 +471,7 @@ export default function DealDetailView({
       <DealLifecycleActions
   deal={deal}
   access={access}
+        isOwner={isOwner}
 />
 
 <DealCommercialActions

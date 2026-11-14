@@ -10,6 +10,8 @@ import {
   markDealLostAction,
   markDealWonAction,
   putDealOnHoldAction,
+  releaseBookingInventoryReservationAction,
+  reserveBookingInventoryAction,
 } from "@/app/dashboard/deals/actions";
 
 import {
@@ -33,6 +35,7 @@ import type {
 type DealLifecycleActionsProps = {
   deal: DealSummary;
   access: DealOSDataAccess;
+  isOwner: boolean;
 };
 
 type FieldErrorProps = {
@@ -124,6 +127,7 @@ function ActionMessage({
 export default function DealLifecycleActions({
   deal,
   access,
+  isOwner,
 }: DealLifecycleActionsProps) {
   const [
     lostState,
@@ -170,6 +174,24 @@ export default function DealLifecycleActions({
     INITIAL_DEALOS_ACTION_STATE,
   );
 
+  const [
+    reservationState,
+    reservationAction,
+    isReservationPending,
+  ] = useActionState(
+    reserveBookingInventoryAction,
+    INITIAL_DEALOS_ACTION_STATE,
+  );
+
+  const [
+    releaseReservationState,
+    releaseReservationAction,
+    isReleaseReservationPending,
+  ] = useActionState(
+    releaseBookingInventoryReservationAction,
+    INITIAL_DEALOS_ACTION_STATE,
+  );
+
   const canPutOnHold =
     access.canUpdateDeal &&
     deal.status !== "on_hold" &&
@@ -208,12 +230,18 @@ export default function DealLifecycleActions({
       deal.bookingId,
     );
 
+  const canControlBookingReservation =
+    isOwner &&
+    deal.status === "booking_ready" &&
+    Boolean(deal.bookingId);
+
   const hasAvailableActions =
     canPutOnHold ||
     canMarkLost ||
     canCancelDeal ||
     canLinkBooking ||
-    canMarkWon;
+    canMarkWon ||
+    canControlBookingReservation;
 
   if (!hasAvailableActions) {
     return null;
@@ -614,6 +642,108 @@ export default function DealLifecycleActions({
                   : "Link booking"}
             </button>
           </form>
+        ) : null}
+
+        {canControlBookingReservation ? (
+          <div className="space-y-4 rounded-2xl border border-violet-500/30 bg-violet-500/5 p-5 xl:col-span-2">
+            <div>
+              <p className="text-sm font-semibold text-violet-200">
+                Booking inventory reservation
+              </p>
+
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Owner-only draft hold. It reserves the linked inventory unit only;
+                no payment, customer, routing or notification is created. Holds expire
+                automatically and a confirmed booking still requires an active hold.
+              </p>
+            </div>
+
+            <form
+              action={reservationAction}
+              noValidate
+              className="grid gap-4 rounded-xl border border-violet-500/20 bg-slate-950/45 p-4 lg:grid-cols-2"
+            >
+              <input type="hidden" name="dealId" value={deal.id} />
+              <input type="hidden" name="bookingId" value={deal.bookingId ?? ""} />
+
+              <div>
+                <label htmlFor="bookingReservationExpiry" className="mb-2 block text-sm font-medium text-slate-300">
+                  Reservation expiry
+                </label>
+                <input
+                  id="bookingReservationExpiry"
+                  name="expiresAt"
+                  type="datetime-local"
+                  required
+                  aria-invalid={Boolean(reservationState.fieldErrors.expiresAt)}
+                  className={getInputClass(Boolean(reservationState.fieldErrors.expiresAt))}
+                />
+                <p className="mt-2 text-xs text-slate-500">Maximum 72 hours from now.</p>
+                <FieldError fieldName="expiresAt" errors={reservationState.fieldErrors} />
+              </div>
+
+              <div>
+                <label htmlFor="bookingReservationNotes" className="mb-2 block text-sm font-medium text-slate-300">
+                  Hold notes (optional)
+                </label>
+                <textarea
+                  id="bookingReservationNotes"
+                  name="reservationNotes"
+                  rows={3}
+                  maxLength={1000}
+                  className={getInputClass(Boolean(reservationState.fieldErrors.reservationNotes))}
+                  placeholder="Internal reason for reserving this unit"
+                />
+                <FieldError fieldName="reservationNotes" errors={reservationState.fieldErrors} />
+              </div>
+
+              <div className="lg:col-span-2">
+                <ActionMessage state={reservationState} />
+                <button
+                  type="submit"
+                  disabled={isReservationPending}
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-violet-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isReservationPending ? "Reserving inventory..." : "Reserve linked inventory"}
+                </button>
+              </div>
+            </form>
+
+            <form
+              action={releaseReservationAction}
+              noValidate
+              className="grid gap-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 lg:grid-cols-[1fr_auto]"
+            >
+              <input type="hidden" name="dealId" value={deal.id} />
+              <input type="hidden" name="bookingId" value={deal.bookingId ?? ""} />
+              <div>
+                <label htmlFor="bookingReservationReleaseReason" className="mb-2 block text-sm font-medium text-slate-300">
+                  Release active hold
+                </label>
+                <input
+                  id="bookingReservationReleaseReason"
+                  name="releaseReason"
+                  required
+                  maxLength={1000}
+                  className={getInputClass(Boolean(releaseReservationState.fieldErrors.releaseReason))}
+                  placeholder="Why this unit should be released"
+                />
+                <FieldError fieldName="releaseReason" errors={releaseReservationState.fieldErrors} />
+              </div>
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={isReleaseReservationPending}
+                  className="inline-flex w-full items-center justify-center rounded-xl border border-amber-400/50 px-5 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isReleaseReservationPending ? "Releasing..." : "Release hold"}
+                </button>
+              </div>
+              <div className="lg:col-span-2">
+                <ActionMessage state={releaseReservationState} />
+              </div>
+            </form>
+          </div>
         ) : null}
 
         {canMarkWon ? (
