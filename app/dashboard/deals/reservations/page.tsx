@@ -37,8 +37,8 @@ type RawReservationRow = Omit<
   ReservationRow,
   "inventory_units" | "bookings"
 > & {
-  inventory_units: ReservationUnit[] | null;
-  bookings: ReservationBooking[] | null;
+  inventory_units: ReservationUnit | ReservationUnit[] | null;
+  bookings: ReservationBooking | ReservationBooking[] | null;
 };
 
 type ReservationAlertRow = {
@@ -62,8 +62,21 @@ type RawReservationEventRow = Omit<
   ReservationEventRow,
   "bookings"
 > & {
-  bookings: Pick<ReservationBooking, "booking_number">[] | null;
+  bookings:
+    | Pick<ReservationBooking, "booking_number">
+    | Pick<ReservationBooking, "booking_number">[]
+    | null;
 };
+
+function firstRelatedRow<T>(
+  relation: T | T[] | null,
+): T | null {
+  if (Array.isArray(relation)) {
+    return relation[0] ?? null;
+  }
+
+  return relation;
+}
 
 function formatDateTime(value: string | null): string {
   if (!value) {
@@ -179,15 +192,15 @@ export default async function ReservationMonitoringPage() {
     (reservationsResponse.data ?? []) as RawReservationRow[]
   ).map((reservation) => ({
     ...reservation,
-    inventory_units: reservation.inventory_units?.[0] ?? null,
-    bookings: reservation.bookings?.[0] ?? null,
+    inventory_units: firstRelatedRow(reservation.inventory_units),
+    bookings: firstRelatedRow(reservation.bookings),
   }));
   const alerts = (alertsResponse.data ?? []) as ReservationAlertRow[];
   const events = (
     (eventsResponse.data ?? []) as RawReservationEventRow[]
   ).map((event) => ({
     ...event,
-    bookings: event.bookings?.[0] ?? null,
+    bookings: firstRelatedRow(event.bookings),
   }));
   const activeReservations = reservations.filter(
     (reservation) => reservation.status === "active",
