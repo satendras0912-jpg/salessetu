@@ -27,6 +27,10 @@ import type {
   BookingPaymentSchedule,
 } from "@/lib/bookings/payment-schedule-service";
 
+import type {
+  BookingPaymentReceiptSubmission,
+} from "@/lib/bookings/payment-receipt-approval-service";
+
 type DealDetailViewProps = {
   deal: DealSummary;
 
@@ -43,6 +47,9 @@ type DealDetailViewProps = {
 
   paymentSchedules:
     BookingPaymentSchedule[];
+
+  paymentReceiptSubmissions:
+    BookingPaymentReceiptSubmission[];
 
   access: DealOSDataAccess;
 
@@ -312,6 +319,7 @@ export default function DealDetailView({
   approvals,
   statusHistory,
   paymentSchedules,
+  paymentReceiptSubmissions,
   access,
   isOwner,
   currentUserId,
@@ -484,14 +492,15 @@ export default function DealDetailView({
         isOwner={isOwner}
 />
 
-      {isOwner &&
-      deal.status === "won" &&
+      {deal.status === "won" &&
       deal.bookingId ? (
         <BookingPaymentSchedulePanel
           dealId={deal.id}
           bookingId={deal.bookingId}
           currencyCode={deal.currencyCode}
           schedules={paymentSchedules}
+
+          submissions={paymentReceiptSubmissions}
           isOwner={isOwner}
         />
       ) : null}

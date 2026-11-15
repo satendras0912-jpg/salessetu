@@ -10,6 +10,10 @@ import {
 } from "@/lib/bookings/payment-schedule-service";
 
 import {
+  getBookingPaymentReceiptSubmissions,
+} from "@/lib/bookings/payment-receipt-approval-service";
+
+import {
   requirePermissionAccess,
 } from "@/lib/auth/access-control";
 
@@ -162,6 +166,18 @@ function getSuccessMessage(
     return "Scheduled payment recorded successfully.";
   }
 
+  if (getSingleValue(searchParams.receiptSubmitted) === "1") {
+    return "Receipt submitted for owner approval. It has not changed the received total.";
+  }
+
+  if (getSingleValue(searchParams.receiptDecision) === "approved") {
+    return "Receipt approved and recorded in the payment ledger.";
+  }
+
+  if (getSingleValue(searchParams.receiptDecision) === "rejected") {
+    return "Receipt rejected. The payment ledger and totals remain unchanged.";
+  }
+
   if (
     getSingleValue(
       searchParams.offerCreated,
@@ -300,6 +316,7 @@ export default async function DealDetailPage({
     approvalsResult,
     statusHistoryResult,
     paymentSchedulesResult,
+    paymentReceiptSubmissions,
   ] = await Promise.all([
     getDealOffers(
       organizationId,
@@ -317,6 +334,11 @@ export default async function DealDetailPage({
     ),
 
     getBookingPaymentSchedules(
+      organizationId,
+      dealResult.data.bookingId,
+    ),
+
+    getBookingPaymentReceiptSubmissions(
       organizationId,
       dealResult.data.bookingId,
     ),
@@ -373,6 +395,9 @@ export default async function DealDetailPage({
       }
       paymentSchedules={
         paymentSchedulesResult.data
+      }
+      paymentReceiptSubmissions={
+        paymentReceiptSubmissions
       }
       access={access}
       isOwner={Boolean(context.membership?.isOwner)}

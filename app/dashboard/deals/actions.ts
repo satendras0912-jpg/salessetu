@@ -209,6 +209,22 @@ type RecordBookingSchedulePaymentParseResult =
       fieldErrors: DealOSFieldErrors;
     };
 
+type DecideBookingPaymentReceiptParseResult =
+  | {
+      success: true;
+      values: {
+        submissionId: string;
+        decision: "approved" | "rejected";
+        reason: string;
+        dealId: string;
+      };
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: DealOSFieldErrors;
+    };
+
     type CreateDealOfferParseResult =
   | {
       success: true;
@@ -1483,6 +1499,27 @@ function parseRecordBookingSchedulePaymentForm(
     success: true,
     values: { dealId, bookingId, scheduleId, amount, paymentReference, paymentMode, paymentDate: paymentDate ?? "", notes },
   };
+}
+
+function parseDecideBookingPaymentReceiptForm(
+  formData: FormData,
+): DecideBookingPaymentReceiptParseResult {
+  const fieldErrors: DealOSFieldErrors = {};
+  const submissionId = normalizeSingleLine(getFormString(formData, "submissionId"));
+  const decision = normalizeSingleLine(getFormString(formData, "decision"));
+  const reason = normalizeMultiline(getFormString(formData, "reason"));
+  const dealId = normalizeSingleLine(getFormString(formData, "dealId"));
+
+  if (!UUID_PATTERN.test(submissionId)) addFieldError(fieldErrors, "submissionId", "Select a valid receipt submission.");
+  if (decision !== "approved" && decision !== "rejected") addFieldError(fieldErrors, "decision", "Choose approve or reject.");
+  if (reason.length < 3 || reason.length > 1000) addFieldError(fieldErrors, "reason", "Enter a decision reason between 3 and 1000 characters.");
+  if (!UUID_PATTERN.test(dealId)) addFieldError(fieldErrors, "dealId", "Select a valid deal.");
+
+  if (hasFieldErrors(fieldErrors)) {
+    return { success: false, message: "Please correct the receipt decision fields.", fieldErrors };
+  }
+
+  return { success: true, values: { submissionId, decision: decision as "approved" | "rejected", reason, dealId } };
 }
 
 function parseCreateDealOfferForm(
@@ -3152,6 +3189,71 @@ export async function recordBookingSchedulePaymentAction(
     `/dashboard/deals/${parsed.values.dealId}?scheduledPaymentRecorded=1`,
     RedirectType.replace,
   );
+}
+
+export async function submitBookingPaymentReceiptAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  await requirePermissionAccess({
+    allOf: [DEALOS_PERMISSIONS.viewDeals],
+    loginRedirectTo: "/login?next=/dashboard/deals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  const parsed = parseRecordBookingSchedulePaymentForm(formData);
+  if (!parsed.success) return { status: "error", message: parsed.message, fieldErrors: parsed.fieldErrors };
+
+  const supabase = await createDealOSClient();
+  const { error } = await supabase.rpc("submit_booking_payment_receipt", {
+    requested_deal_id: parsed.values.dealId,
+    requested_booking_id: parsed.values.bookingId,
+    requested_schedule_id: parsed.values.scheduleId,
+    requested_amount: parsed.values.amount,
+    requested_payment_reference: parsed.values.paymentReference,
+    requested_payment_mode: parsed.values.paymentMode,
+    requested_payment_date: parsed.values.paymentDate,
+    requested_notes: parsed.values.notes || null,
+  });
+
+  if (error) return createErrorState(error.message || "The receipt could not be submitted for approval.");
+
+  revalidateDealOSPaths(parsed.values.dealId);
+  revalidatePath("/dashboard/deals/receipt-approvals");
+  redirect(`/dashboard/deals/${parsed.values.dealId}?receiptSubmitted=1`, RedirectType.replace);
+}
+
+export async function decideBookingPaymentReceiptAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    allOf: [DEALOS_PERMISSIONS.viewDeals],
+    loginRedirectTo: "/login?next=/dashboard/deals/receipt-approvals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  if (!context.membership?.isOwner) return createErrorState("Only the workspace owner can approve or reject a receipt.");
+
+  const parsed = parseDecideBookingPaymentReceiptForm(formData);
+  if (!parsed.success) return { status: "error", message: parsed.message, fieldErrors: parsed.fieldErrors };
+
+  const supabase = await createDealOSClient();
+  const { error } = await supabase.rpc("decide_booking_payment_receipt", {
+    requested_submission_id: parsed.values.submissionId,
+    requested_decision: parsed.values.decision,
+    requested_reason: parsed.values.reason,
+  });
+
+  if (error) return createErrorState(error.message || "The receipt decision could not be recorded.");
+
+  revalidateDealOSPaths(parsed.values.dealId);
+  revalidatePath("/dashboard/deals/receipt-approvals");
+  redirect(`/dashboard/deals/${parsed.values.dealId}?receiptDecision=${parsed.values.decision}`, RedirectType.replace);
 }
 
 export async function createDealOfferAction(
