@@ -154,6 +154,14 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/deals/receipt-approvals",
+    label: "Receipt Approvals",
+    description: "Verify submitted collection receipts",
+    permission: "deals.view",
+    ownerOnly: true,
+    exact: true,
+  },
+  {
     href: "/dashboard/team",
     label: "Sales Agents",
     description: "Invite and manage your team",

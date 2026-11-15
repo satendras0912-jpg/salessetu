@@ -44,6 +44,7 @@ export default async function PaymentReconciliationPage() {
       <div className="flex flex-wrap items-center gap-3 xl:justify-end">
         <PaymentReconciliationRefresh />
         <PaymentReconciliationExport rows={report.bookings} reportDate={report.today} />
+        <Link href="/dashboard/deals/receipt-approvals" className="rounded-xl border border-amber-500/50 bg-slate-900 px-4 py-2 text-sm font-semibold text-amber-200 hover:border-amber-400 hover:text-amber-100">Receipt approvals</Link>
         <Link href="/dashboard/deals/collections" className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-cyan-300 hover:border-cyan-400 hover:text-cyan-100">Payment due alerts</Link>
       </div>
     </header>

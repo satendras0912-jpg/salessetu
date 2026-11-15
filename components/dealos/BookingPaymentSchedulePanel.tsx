@@ -2,159 +2,38 @@
 
 import { useActionState } from "react";
 
-import {
-  createBookingPaymentScheduleAction,
-  recordBookingSchedulePaymentAction,
-} from "@/app/dashboard/deals/actions";
-
+import { createBookingPaymentScheduleAction, decideBookingPaymentReceiptAction, submitBookingPaymentReceiptAction } from "@/app/dashboard/deals/actions";
 import { INITIAL_DEALOS_ACTION_STATE } from "@/lib/dealos/deal-contract";
-
+import type { BookingPaymentReceiptSubmission } from "@/lib/bookings/payment-receipt-approval-service";
 import type { BookingPaymentSchedule } from "@/lib/bookings/payment-schedule-service";
-
 import type { DealOSActionState, DealOSFieldErrors } from "@/types/dealos-actions";
 
-type BookingPaymentSchedulePanelProps = {
-  dealId: string;
-  bookingId: string;
-  currencyCode: string;
-  schedules: BookingPaymentSchedule[];
-  isOwner: boolean;
-};
+type Props = { dealId: string; bookingId: string; currencyCode: string; schedules: BookingPaymentSchedule[]; submissions: BookingPaymentReceiptSubmission[]; isOwner: boolean };
+const INPUT = "w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20";
 
-const INPUT_CLASS =
-  "w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20";
+function money(value: number, currencyCode: string): string { try { return new Intl.NumberFormat("en-IN", { style: "currency", currency: currencyCode, maximumFractionDigits: 0 }).format(value); } catch { return `${currencyCode} ${value.toLocaleString("en-IN")}`; } }
+function label(value: string): string { return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
+function date(value: string): string { return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: value.includes("T") ? "short" : undefined, timeZone: "Asia/Kolkata" }).format(new Date(value.includes("T") ? value : `${value}T00:00:00`)); }
+function errors(field: string, source: DealOSFieldErrors) { return (source[field] ?? []).map((message) => <p key={message} className="mt-1 text-xs text-red-300">{message}</p>); }
+function message(state: DealOSActionState) { return state.status === "idle" || !state.message ? null : <p aria-live="polite" className={`rounded-xl border px-4 py-3 text-sm ${state.status === "success" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200" : "border-red-500/40 bg-red-500/10 text-red-200"}`}>{state.message}</p>; }
 
-function formatCurrency(value: number, currencyCode: string): string {
-  try {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: currencyCode,
-      maximumFractionDigits: 0,
-    }).format(value);
-  } catch {
-    return `${currencyCode} ${value.toLocaleString("en-IN")}`;
-  }
+function ReceiptDecisionForm({ submission, dealId, currencyCode }: { submission: BookingPaymentReceiptSubmission; dealId: string; currencyCode: string }) {
+  const [state, action, pending] = useActionState(decideBookingPaymentReceiptAction, INITIAL_DEALOS_ACTION_STATE);
+  return <form action={action} className="mt-4 grid gap-3 rounded-xl border border-amber-500/25 bg-slate-950/60 p-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end"><input type="hidden" name="submissionId" value={submission.id} /><input type="hidden" name="dealId" value={dealId} /><div className="lg:col-span-2"><p className="font-medium text-white">{money(submission.amount, currencyCode)} · {label(submission.paymentMode)}</p><p className="mt-1 text-xs text-slate-400">{submission.paymentReference} · paid {date(submission.paymentDate)} · submitted {date(submission.submittedAt)}</p>{submission.notes ? <p className="mt-1 text-xs text-slate-500">{submission.notes}</p> : null}</div><div><label className="mb-1 block text-xs text-slate-300" htmlFor={`reason-${submission.id}`}>Decision reason</label><input id={`reason-${submission.id}`} name="reason" required minLength={3} maxLength={1000} className={INPUT} placeholder="Verified against bank / proof" />{errors("reason", state.fieldErrors)}</div><div className="flex gap-2"><button type="submit" name="decision" value="approved" disabled={pending} className="rounded-xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 disabled:opacity-50">Approve</button><button type="submit" name="decision" value="rejected" disabled={pending} className="rounded-xl border border-red-500/60 px-4 py-3 text-sm font-semibold text-red-200 disabled:opacity-50">Reject</button></div><div className="lg:col-span-4">{message(state)}</div></form>;
 }
 
-function formatDate(value: string): string {
-  const date = new Date(`${value}T00:00:00`);
+export default function BookingPaymentSchedulePanel({ dealId, bookingId, currencyCode, schedules, submissions, isOwner }: Props) {
+  const [scheduleState, scheduleAction, schedulePending] = useActionState(createBookingPaymentScheduleAction, INITIAL_DEALOS_ACTION_STATE);
+  const [receiptState, receiptAction, receiptPending] = useActionState(submitBookingPaymentReceiptAction, INITIAL_DEALOS_ACTION_STATE);
+  const totalDue = schedules.reduce((sum, item) => sum + item.amountDue, 0);
+  const totalReceived = schedules.reduce((sum, item) => sum + item.amountReceived, 0);
+  const open = schedules.filter((item) => !["paid", "cancelled"].includes(item.scheduleStatus));
+  const pending = submissions.filter((item) => item.status === "pending");
 
-  return Number.isNaN(date.getTime())
-    ? "—"
-    : new Intl.DateTimeFormat("en-IN", {
-      dateStyle: "medium",
-      timeZone: "Asia/Kolkata",
-    }).format(date);
-}
-
-function formatLabel(value: string): string {
-  return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function statusClass(value: string): string {
-  if (value === "paid") return "border-emerald-500/40 bg-emerald-500/10 text-emerald-200";
-  if (value === "overdue") return "border-red-500/40 bg-red-500/10 text-red-200";
-  if (value === "partially_paid") return "border-amber-500/40 bg-amber-500/10 text-amber-200";
-  return "border-slate-700 bg-slate-800 text-slate-300";
-}
-
-function FieldError({ fieldName, errors }: { fieldName: string; errors: DealOSFieldErrors }) {
-  const messages = errors[fieldName] ?? [];
-
-  return messages.length === 0 ? null : (
-    <div className="mt-2 space-y-1">
-      {messages.map((message) => <p key={message} className="text-xs text-red-300">{message}</p>)}
-    </div>
-  );
-}
-
-function ActionMessage({ state }: { state: DealOSActionState }) {
-  if (state.status === "idle" || !state.message) return null;
-
-  const className = state.status === "success"
-    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
-    : "border-red-500/40 bg-red-500/10 text-red-200";
-
-  return <p aria-live="polite" className={`rounded-xl border px-4 py-3 text-sm ${className}`}>{state.message}</p>;
-}
-
-export default function BookingPaymentSchedulePanel({
-  dealId,
-  bookingId,
-  currencyCode,
-  schedules,
-  isOwner,
-}: BookingPaymentSchedulePanelProps) {
-  const [createState, createAction, isCreatePending] = useActionState(
-    createBookingPaymentScheduleAction,
-    INITIAL_DEALOS_ACTION_STATE,
-  );
-  const [recordState, recordAction, isRecordPending] = useActionState(
-    recordBookingSchedulePaymentAction,
-    INITIAL_DEALOS_ACTION_STATE,
-  );
-
-  const totalDue = schedules.reduce((total, schedule) => total + schedule.amountDue, 0);
-  const totalReceived = schedules.reduce((total, schedule) => total + schedule.amountReceived, 0);
-  const outstanding = Math.max(totalDue - totalReceived, 0);
-  const openSchedules = schedules.filter((schedule) => !["paid", "cancelled"].includes(schedule.scheduleStatus));
-
-  return (
-    <section className="rounded-3xl border border-cyan-500/25 bg-cyan-500/5 p-6 sm:p-8">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">Post-sale collections</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">Payment schedule & outstanding</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            Confirmed booking ke installments, received amount aur remaining collection ko ek audited owner view mein track karein.
-          </p>
-        </div>
-        <span className="rounded-full border border-cyan-400/40 px-3 py-1 text-xs font-semibold text-cyan-200">Booking {bookingId.slice(0, 8)}</span>
-      </div>
-
-      <dl className="mt-7 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">Scheduled</dt><dd className="mt-2 text-2xl font-bold text-white">{formatCurrency(totalDue, currencyCode)}</dd></div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">Received</dt><dd className="mt-2 text-2xl font-bold text-emerald-300">{formatCurrency(totalReceived, currencyCode)}</dd></div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">Outstanding</dt><dd className="mt-2 text-2xl font-bold text-amber-300">{formatCurrency(outstanding, currencyCode)}</dd></div>
-      </dl>
-
-      {schedules.length === 0 ? (
-        <div className="mt-6 rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 px-5 py-8 text-center text-sm text-slate-400">No payment installments have been scheduled yet.</div>
-      ) : (
-        <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-800">
-          <table className="min-w-full text-left text-sm">
-            <thead className="bg-slate-950/80 text-xs uppercase tracking-wider text-slate-500"><tr><th className="px-4 py-3">Installment</th><th className="px-4 py-3">Due</th><th className="px-4 py-3">Due amount</th><th className="px-4 py-3">Received</th><th className="px-4 py-3">Outstanding</th><th className="px-4 py-3">Status</th></tr></thead>
-            <tbody className="divide-y divide-slate-800 bg-slate-950/40">
-              {schedules.map((schedule) => <tr key={schedule.id}><td className="px-4 py-4"><p className="font-semibold text-slate-200">#{schedule.sequenceNumber} · {formatLabel(schedule.paymentType)}</p>{schedule.notes ? <p className="mt-1 max-w-xs text-xs text-slate-500">{schedule.notes}</p> : null}</td><td className="px-4 py-4 text-slate-300">{formatDate(schedule.dueDate)}</td><td className="px-4 py-4 text-slate-200">{formatCurrency(schedule.amountDue, currencyCode)}</td><td className="px-4 py-4 text-emerald-300">{formatCurrency(schedule.amountReceived, currencyCode)}</td><td className="px-4 py-4 text-amber-300">{formatCurrency(Math.max(schedule.amountDue - schedule.amountReceived, 0), currencyCode)}</td><td className="px-4 py-4"><span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClass(schedule.scheduleStatus)}`}>{formatLabel(schedule.scheduleStatus)}</span></td></tr>)}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {isOwner ? (
-        <div className="mt-7 grid gap-6 xl:grid-cols-2">
-          <form action={createAction} noValidate className="space-y-4 rounded-2xl border border-cyan-500/25 bg-slate-950/50 p-5">
-            <input type="hidden" name="dealId" value={dealId} /><input type="hidden" name="bookingId" value={bookingId} />
-            <div><h3 className="font-semibold text-white">Add installment</h3><p className="mt-1 text-xs leading-5 text-slate-400">Schedule banne se payment collect nahi hota.</p></div>
-            <div className="grid gap-4 sm:grid-cols-2"><div><label htmlFor="scheduleDueDate" className="mb-2 block text-sm text-slate-300">Due date</label><input id="scheduleDueDate" name="dueDate" type="date" required className={INPUT_CLASS} /><FieldError fieldName="dueDate" errors={createState.fieldErrors} /></div><div><label htmlFor="scheduleAmountDue" className="mb-2 block text-sm text-slate-300">Amount due</label><input id="scheduleAmountDue" name="amountDue" type="number" min="0.01" step="0.01" required className={INPUT_CLASS} placeholder="0.00" /><FieldError fieldName="amountDue" errors={createState.fieldErrors} /></div></div>
-            <div><label htmlFor="schedulePaymentType" className="mb-2 block text-sm text-slate-300">Installment type</label><select id="schedulePaymentType" name="paymentType" defaultValue="installment" className={INPUT_CLASS}><option value="installment">Installment</option><option value="booking_amount">Booking amount</option><option value="registration">Registration</option><option value="stamp_duty">Stamp duty</option><option value="maintenance">Maintenance</option><option value="club_charge">Club charge</option><option value="parking">Parking</option><option value="tax">Tax</option><option value="other">Other</option></select></div>
-            <div><label htmlFor="scheduleNotes" className="mb-2 block text-sm text-slate-300">Notes <span className="text-slate-500">(optional)</span></label><textarea id="scheduleNotes" name="notes" maxLength={1000} className={INPUT_CLASS} placeholder="Payment plan or collection context" /></div>
-            <FieldError fieldName="dealId" errors={createState.fieldErrors} /><ActionMessage state={createState} />
-            <button type="submit" disabled={isCreatePending} className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60">{isCreatePending ? "Scheduling..." : "Add payment installment"}</button>
-          </form>
-
-          <form action={recordAction} noValidate className="space-y-4 rounded-2xl border border-emerald-500/25 bg-slate-950/50 p-5">
-            <input type="hidden" name="dealId" value={dealId} /><input type="hidden" name="bookingId" value={bookingId} />
-            <div><h3 className="font-semibold text-white">Record received payment</h3><p className="mt-1 text-xs leading-5 text-slate-400">Receipt reference ke saath booking payment ledger mein payment record hoga.</p></div>
-            <div><label htmlFor="scheduleId" className="mb-2 block text-sm text-slate-300">Open installment</label><select id="scheduleId" name="scheduleId" required defaultValue="" className={INPUT_CLASS}><option value="" disabled>Select installment</option>{openSchedules.map((schedule) => <option key={schedule.id} value={schedule.id}>#{schedule.sequenceNumber} · {formatLabel(schedule.paymentType)} · {formatCurrency(Math.max(schedule.amountDue - schedule.amountReceived, 0), currencyCode)} remaining</option>)}</select><FieldError fieldName="scheduleId" errors={recordState.fieldErrors} /></div>
-            <div className="grid gap-4 sm:grid-cols-2"><div><label htmlFor="receivedAmount" className="mb-2 block text-sm text-slate-300">Amount received</label><input id="receivedAmount" name="amount" type="number" min="0.01" step="0.01" required className={INPUT_CLASS} placeholder="0.00" /><FieldError fieldName="amount" errors={recordState.fieldErrors} /></div><div><label htmlFor="receivedPaymentDate" className="mb-2 block text-sm text-slate-300">Payment date & time</label><input id="receivedPaymentDate" name="paymentDate" type="datetime-local" required className={INPUT_CLASS} /><FieldError fieldName="paymentDate" errors={recordState.fieldErrors} /></div></div>
-            <div className="grid gap-4 sm:grid-cols-2"><div><label htmlFor="receivedReference" className="mb-2 block text-sm text-slate-300">Payment reference</label><input id="receivedReference" name="paymentReference" required maxLength={200} className={INPUT_CLASS} placeholder="UPI / bank / receipt reference" /><FieldError fieldName="paymentReference" errors={recordState.fieldErrors} /></div><div><label htmlFor="receivedMode" className="mb-2 block text-sm text-slate-300">Payment mode</label><select id="receivedMode" name="paymentMode" required defaultValue="" className={INPUT_CLASS}><option value="" disabled>Select mode</option><option value="upi">UPI</option><option value="bank_transfer">Bank transfer</option><option value="cheque">Cheque</option><option value="payment_gateway">Payment gateway</option><option value="cash">Cash</option><option value="loan_disbursement">Loan disbursement</option><option value="other">Other</option></select><FieldError fieldName="paymentMode" errors={recordState.fieldErrors} /></div></div>
-            <div><label htmlFor="receivedNotes" className="mb-2 block text-sm text-slate-300">Notes <span className="text-slate-500">(optional)</span></label><textarea id="receivedNotes" name="notes" maxLength={1000} className={INPUT_CLASS} placeholder="Collection or receipt context" /></div>
-            <ActionMessage state={recordState} />
-            <button type="submit" disabled={isRecordPending || openSchedules.length === 0} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60">{isRecordPending ? "Recording..." : "Record scheduled payment"}</button>
-          </form>
-        </div>
-      ) : null}
-    </section>
-  );
+  return <section id="payment-schedule" className="rounded-3xl border border-cyan-500/25 bg-cyan-500/5 p-6 sm:p-8"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div><p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">Post-sale collections</p><h2 className="mt-2 text-2xl font-semibold text-white">Payment schedule & receipt approval</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Sales agent receipt submit karta hai; owner approval ke baad hi amount received aur reconciliation mein count hota hai.</p></div><span className="rounded-full border border-cyan-400/40 px-3 py-1 text-xs font-semibold text-cyan-200">Booking {bookingId.slice(0, 8)}</span></div>
+    <dl className="mt-7 grid gap-4 sm:grid-cols-3"><div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">Scheduled</dt><dd className="mt-2 text-2xl font-bold text-white">{money(totalDue, currencyCode)}</dd></div><div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">Approved received</dt><dd className="mt-2 text-2xl font-bold text-emerald-300">{money(totalReceived, currencyCode)}</dd></div><div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4"><dt className="text-xs uppercase tracking-wider text-slate-500">Outstanding</dt><dd className="mt-2 text-2xl font-bold text-amber-300">{money(Math.max(totalDue - totalReceived, 0), currencyCode)}</dd></div></dl>
+    <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-800"><table className="min-w-full text-left text-sm"><caption className="sr-only">Payment schedule</caption><thead className="bg-slate-950/80 text-xs uppercase tracking-wider text-slate-500"><tr>{["Installment", "Due", "Due amount", "Approved received", "Outstanding", "Status"].map((item) => <th key={item} className="px-4 py-3">{item}</th>)}</tr></thead><tbody className="divide-y divide-slate-800 bg-slate-950/40">{schedules.length ? schedules.map((item) => <tr key={item.id}><td className="px-4 py-4 font-semibold text-slate-200">#{item.sequenceNumber} · {label(item.paymentType)}</td><td className="px-4 py-4 text-slate-300">{date(item.dueDate)}</td><td className="px-4 py-4">{money(item.amountDue, currencyCode)}</td><td className="px-4 py-4 text-emerald-300">{money(item.amountReceived, currencyCode)}</td><td className="px-4 py-4 text-amber-300">{money(Math.max(item.amountDue - item.amountReceived, 0), currencyCode)}</td><td className="px-4 py-4 text-slate-300">{label(item.scheduleStatus)}</td></tr>) : <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No payment installments have been scheduled yet.</td></tr>}</tbody></table></div>
+    {isOwner ? <form action={scheduleAction} noValidate className="mt-7 space-y-4 rounded-2xl border border-cyan-500/25 bg-slate-950/50 p-5"><input type="hidden" name="dealId" value={dealId} /><input type="hidden" name="bookingId" value={bookingId} /><div><h3 className="font-semibold text-white">Add installment</h3><p className="mt-1 text-xs text-slate-400">Only owner payment schedule manage kar sakta hai.</p></div><div className="grid gap-4 sm:grid-cols-3"><div><label htmlFor="scheduleDueDate" className="mb-2 block text-sm text-slate-300">Due date</label><input id="scheduleDueDate" name="dueDate" type="date" required className={INPUT} />{errors("dueDate", scheduleState.fieldErrors)}</div><div><label htmlFor="scheduleAmountDue" className="mb-2 block text-sm text-slate-300">Amount due</label><input id="scheduleAmountDue" name="amountDue" type="number" min="0.01" step="0.01" required className={INPUT} placeholder="0.00" />{errors("amountDue", scheduleState.fieldErrors)}</div><div><label htmlFor="schedulePaymentType" className="mb-2 block text-sm text-slate-300">Installment type</label><select id="schedulePaymentType" name="paymentType" defaultValue="installment" className={INPUT}><option value="installment">Installment</option><option value="booking_amount">Booking amount</option><option value="registration">Registration</option><option value="stamp_duty">Stamp duty</option><option value="maintenance">Maintenance</option><option value="club_charge">Club charge</option><option value="parking">Parking</option><option value="tax">Tax</option><option value="other">Other</option></select></div></div><div><label htmlFor="scheduleNotes" className="mb-2 block text-sm text-slate-300">Notes <span className="text-slate-500">(optional)</span></label><textarea id="scheduleNotes" name="notes" maxLength={1000} className={INPUT} /></div>{message(scheduleState)}<button type="submit" disabled={schedulePending} className="rounded-xl bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 disabled:opacity-60">{schedulePending ? "Scheduling..." : "Add payment installment"}</button></form> : null}
+    <form action={receiptAction} noValidate className="mt-7 space-y-4 rounded-2xl border border-emerald-500/25 bg-slate-950/50 p-5"><input type="hidden" name="dealId" value={dealId} /><input type="hidden" name="bookingId" value={bookingId} /><div><h3 className="font-semibold text-white">Submit receipt for owner approval</h3><p className="mt-1 text-xs leading-5 text-slate-400">Receipt pending rahega; isse booking payment status ya received total change nahi hoga.</p></div><div className="grid gap-4 sm:grid-cols-2"><div><label htmlFor="scheduleId" className="mb-2 block text-sm text-slate-300">Open installment</label><select id="scheduleId" name="scheduleId" required defaultValue="" className={INPUT}><option value="" disabled>Select installment</option>{open.map((item) => <option key={item.id} value={item.id}>#{item.sequenceNumber} · {label(item.paymentType)} · {money(Math.max(item.amountDue - item.amountReceived, 0), currencyCode)} remaining</option>)}</select>{errors("scheduleId", receiptState.fieldErrors)}</div><div><label htmlFor="receivedAmount" className="mb-2 block text-sm text-slate-300">Amount received</label><input id="receivedAmount" name="amount" type="number" min="0.01" step="0.01" required className={INPUT} placeholder="0.00" />{errors("amount", receiptState.fieldErrors)}</div><div><label htmlFor="receivedPaymentDate" className="mb-2 block text-sm text-slate-300">Payment date & time</label><input id="receivedPaymentDate" name="paymentDate" type="datetime-local" required className={INPUT} />{errors("paymentDate", receiptState.fieldErrors)}</div><div><label htmlFor="receivedReference" className="mb-2 block text-sm text-slate-300">Payment reference</label><input id="receivedReference" name="paymentReference" required maxLength={200} className={INPUT} placeholder="UPI / bank / receipt reference" />{errors("paymentReference", receiptState.fieldErrors)}</div><div><label htmlFor="receivedMode" className="mb-2 block text-sm text-slate-300">Payment mode</label><select id="receivedMode" name="paymentMode" required defaultValue="" className={INPUT}><option value="" disabled>Select mode</option><option value="upi">UPI</option><option value="bank_transfer">Bank transfer</option><option value="cheque">Cheque</option><option value="payment_gateway">Payment gateway</option><option value="cash">Cash</option><option value="loan_disbursement">Loan disbursement</option><option value="other">Other</option></select>{errors("paymentMode", receiptState.fieldErrors)}</div><div><label htmlFor="receivedNotes" className="mb-2 block text-sm text-slate-300">Notes <span className="text-slate-500">(optional)</span></label><textarea id="receivedNotes" name="notes" maxLength={1000} className={INPUT} /></div></div>{message(receiptState)}<button type="submit" disabled={receiptPending || open.length === 0} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 disabled:opacity-60">{receiptPending ? "Submitting..." : "Submit receipt for approval"}</button></form>
+    {isOwner ? <section className="mt-7 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5"><h3 className="font-semibold text-white">Pending receipt approvals</h3><p className="mt-1 text-sm text-slate-400">Approval ke baad hi payment ledger aur reconciliation update honge.</p>{pending.length ? pending.map((item) => <ReceiptDecisionForm key={item.id} submission={item} dealId={dealId} currencyCode={currencyCode} />) : <p className="mt-4 text-sm text-slate-500">No pending receipt submissions for this booking.</p>}</section> : null}</section>;
 }
