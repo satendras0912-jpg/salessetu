@@ -2,6 +2,8 @@ import Link from "next/link";
 
 import DealCommercialActions from "@/components/dealos/DealCommercialActions";
 
+import BookingPaymentSchedulePanel from "@/components/dealos/BookingPaymentSchedulePanel";
+
 import DealLifecycleActions from "@/components/dealos/DealLifecycleActions";
 
 import DealUpdateForm from "@/components/dealos/DealUpdateForm";
@@ -21,6 +23,10 @@ import type {
   OrganizationMemberOption,
 } from "@/types/lead-operational-controls";
 
+import type {
+  BookingPaymentSchedule,
+} from "@/lib/bookings/payment-schedule-service";
+
 type DealDetailViewProps = {
   deal: DealSummary;
 
@@ -34,6 +40,9 @@ type DealDetailViewProps = {
 
   statusHistory:
     DealStatusHistorySummary[];
+
+  paymentSchedules:
+    BookingPaymentSchedule[];
 
   access: DealOSDataAccess;
 
@@ -302,6 +311,7 @@ export default function DealDetailView({
   assigneeOptions,
   approvals,
   statusHistory,
+  paymentSchedules,
   access,
   isOwner,
   currentUserId,
@@ -473,6 +483,18 @@ export default function DealDetailView({
   access={access}
         isOwner={isOwner}
 />
+
+      {isOwner &&
+      deal.status === "won" &&
+      deal.bookingId ? (
+        <BookingPaymentSchedulePanel
+          dealId={deal.id}
+          bookingId={deal.bookingId}
+          currencyCode={deal.currencyCode}
+          schedules={paymentSchedules}
+          isOwner={isOwner}
+        />
+      ) : null}
 
 <DealCommercialActions
   deal={deal}
