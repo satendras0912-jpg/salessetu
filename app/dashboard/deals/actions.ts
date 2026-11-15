@@ -149,6 +149,28 @@ type CreateDealParseResult =
       fieldErrors: DealOSFieldErrors;
     };
 
+type ConfirmBookingAndWinDealParseResult =
+  | {
+      success: true;
+      values: {
+        dealId: string;
+        bookingId: string;
+        expectedUpdatedAt: string;
+        paymentReference: string;
+        paymentAmount: number;
+        paymentMode: string;
+        documentStatus: "not_required" | "requested" | "under_review";
+        documentName: string;
+        confirmationReason: string;
+        confirmationNotes: string;
+      };
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: DealOSFieldErrors;
+    };
+
     type CreateDealOfferParseResult =
   | {
       success: true;
@@ -1307,6 +1329,56 @@ function parseMarkDealWonForm(
 
       expectedUpdatedAt:
         expectedUpdatedAt ?? "",
+    },
+  };
+}
+
+function parseConfirmBookingAndWinDealForm(
+  formData: FormData,
+): ConfirmBookingAndWinDealParseResult {
+  const fieldErrors: DealOSFieldErrors = {};
+  const dealId = normalizeSingleLine(getFormString(formData, "dealId"));
+  const bookingId = normalizeSingleLine(getFormString(formData, "bookingId"));
+  const expectedUpdatedAt = normalizeDealExpectedUpdatedAt(
+    getFormString(formData, "expectedUpdatedAt"),
+  );
+  const paymentReference = normalizeSingleLine(
+    getFormString(formData, "paymentReference"),
+  );
+  const paymentAmount = Number(getFormString(formData, "paymentAmount"));
+  const paymentMode = normalizeSingleLine(getFormString(formData, "paymentMode"));
+  const documentStatus = normalizeSingleLine(getFormString(formData, "documentStatus"));
+  const documentName = normalizeSingleLine(getFormString(formData, "documentName"));
+  const confirmationReason = normalizeMultiline(
+    getFormString(formData, "confirmationReason"),
+  );
+  const confirmationNotes = normalizeMultiline(
+    getFormString(formData, "confirmationNotes"),
+  );
+
+  if (!UUID_PATTERN.test(dealId)) addFieldError(fieldErrors, "dealId", "Select a valid deal.");
+  if (!UUID_PATTERN.test(bookingId)) addFieldError(fieldErrors, "bookingId", "Select a valid booking.");
+  if (!expectedUpdatedAt) addFieldError(fieldErrors, "expectedUpdatedAt", "The original deal update timestamp is invalid.");
+  if (!paymentReference) addFieldError(fieldErrors, "paymentReference", "Enter the payment reference.");
+  if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) addFieldError(fieldErrors, "paymentAmount", "Enter a payment amount greater than zero.");
+  if (!paymentMode) addFieldError(fieldErrors, "paymentMode", "Select the payment mode.");
+  if (!["not_required", "requested", "under_review"].includes(documentStatus)) addFieldError(fieldErrors, "documentStatus", "Select a valid document status.");
+  if (documentStatus !== "not_required" && !documentName) addFieldError(fieldErrors, "documentName", "Enter the document reference.");
+  if (confirmationReason.length < 3) addFieldError(fieldErrors, "confirmationReason", "Enter a short confirmation reason.");
+  if (confirmationReason.length > 1000) addFieldError(fieldErrors, "confirmationReason", "Reason cannot exceed 1000 characters.");
+  if (confirmationNotes.length > 2000) addFieldError(fieldErrors, "confirmationNotes", "Notes cannot exceed 2000 characters.");
+
+  if (hasFieldErrors(fieldErrors)) {
+    return { success: false, message: "Please correct the highlighted confirmation fields.", fieldErrors };
+  }
+
+  return {
+    success: true,
+    values: {
+      dealId, bookingId, expectedUpdatedAt: expectedUpdatedAt ?? "", paymentReference,
+      paymentAmount, paymentMode,
+      documentStatus: documentStatus as "not_required" | "requested" | "under_review",
+      documentName, confirmationReason, confirmationNotes,
     },
   };
 }
@@ -2787,6 +2859,12 @@ export async function markDealWonAction(
   const organizationId =
     context.organization?.id?.trim();
 
+  if (!context.membership?.isOwner) {
+    return createErrorState(
+      "Only the workspace owner can mark a booking-backed deal won.",
+    );
+  }
+
   if (!organizationId) {
     return createErrorState(
       "An active organization context is required to mark a deal won.",
@@ -2830,6 +2908,60 @@ export async function markDealWonAction(
 
   redirect(
     `/dashboard/deals/${dealId}?dealWon=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function confirmBookingAndWinDealAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    allOf: [DEALOS_PERMISSIONS.viewDeals, DEALOS_PERMISSIONS.handoffBooking],
+    loginRedirectTo: "/login?next=/dashboard/deals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  if (!context.membership?.isOwner) {
+    return createErrorState(
+      "Only the workspace owner can confirm a booking and mark a deal won.",
+    );
+  }
+
+  const parsed = parseConfirmBookingAndWinDealForm(formData);
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors: parsed.fieldErrors,
+    };
+  }
+
+  const supabase = await createDealOSClient();
+  const { error } = await supabase.rpc("confirm_booking_and_win_deal", {
+    requested_deal_id: parsed.values.dealId,
+    requested_booking_id: parsed.values.bookingId,
+    requested_expected_updated_at: parsed.values.expectedUpdatedAt,
+    requested_payment_reference: parsed.values.paymentReference,
+    requested_payment_amount: parsed.values.paymentAmount,
+    requested_payment_mode: parsed.values.paymentMode,
+    requested_document_status: parsed.values.documentStatus,
+    requested_document_name: parsed.values.documentName || null,
+    requested_confirmation_reason: parsed.values.confirmationReason,
+    requested_confirmation_notes: parsed.values.confirmationNotes || null,
+  });
+
+  if (error) {
+    return createErrorState(
+      error.message || "The booking could not be confirmed.",
+    );
+  }
+
+  revalidateDealOSPaths(parsed.values.dealId);
+  redirect(
+    `/dashboard/deals/${parsed.values.dealId}?bookingConfirmedAndWon=1`,
     RedirectType.replace,
   );
 }
