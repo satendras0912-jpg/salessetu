@@ -136,6 +136,14 @@ function getSuccessMessage(
 
   if (
     getSingleValue(
+      searchParams.bookingConfirmedAndWon,
+    ) === "1"
+  ) {
+    return "Booking confirmed, payment/document reference recorded, unit booked and deal marked as won.";
+  }
+
+  if (
+    getSingleValue(
       searchParams.offerCreated,
     ) === "1"
   ) {
