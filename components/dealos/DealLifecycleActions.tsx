@@ -7,9 +7,9 @@ import {
 
 import {
   cancelDealAction,
+  confirmBookingAndWinDealAction,
   linkDealBookingAction,
   markDealLostAction,
-  markDealWonAction,
   putDealOnHoldAction,
   releaseBookingInventoryReservationAction,
   reserveBookingInventoryAction,
@@ -172,11 +172,11 @@ export default function DealLifecycleActions({
   );
 
   const [
-    wonState,
-    wonAction,
-    isWonPending,
+    confirmationState,
+    confirmationAction,
+    isConfirmationPending,
   ] = useActionState(
-    markDealWonAction,
+    confirmBookingAndWinDealAction,
     INITIAL_DEALOS_ACTION_STATE,
   );
 
@@ -227,8 +227,8 @@ export default function DealLifecycleActions({
     deal.status ===
       "booking_ready";
 
-  const canMarkWon =
-    access.canMarkWon &&
+  const canConfirmBookingAndWin =
+    isOwner &&
     access.canHandoffBooking &&
     deal.status ===
       "booking_ready" &&
@@ -266,7 +266,7 @@ export default function DealLifecycleActions({
     canMarkLost ||
     canCancelDeal ||
     canLinkBooking ||
-    canMarkWon ||
+    canConfirmBookingAndWin ||
     canControlBookingReservation;
 
   if (!hasAvailableActions) {
@@ -779,9 +779,9 @@ export default function DealLifecycleActions({
           </div>
         ) : null}
 
-        {canMarkWon ? (
+        {canConfirmBookingAndWin ? (
           <form
-            action={wonAction}
+            action={confirmationAction}
             noValidate
             className="space-y-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5"
           >
@@ -793,25 +793,26 @@ export default function DealLifecycleActions({
 
             <input
               type="hidden"
+              name="bookingId"
+              value={deal.bookingId ?? ""}
+            />
+
+            <input
+              type="hidden"
               name="expectedUpdatedAt"
               value={deal.updatedAt}
             />
 
             <div>
               <p className="text-sm font-semibold text-emerald-200">
-                Mark deal won
+                Confirm booking & mark deal won
               </p>
 
               <p className="mt-1 text-xs leading-5 text-slate-400">
-                A linked, confirmed booking is required
-                before this booking-ready deal can be
-                finalized as won.
+                Owner payment reference record karega, linked unit
+                booked hoga aur deal ek hi audited action mein won hogi.
               </p>
             </div>
-
-            <ActionMessage
-              state={wonState}
-            />
 
             <div className="rounded-xl border border-emerald-500/20 bg-slate-950/50 px-4 py-3">
               <p className="text-xs uppercase tracking-wider text-slate-500">
@@ -823,21 +824,90 @@ export default function DealLifecycleActions({
               </p>
             </div>
 
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="bookingPaymentReference" className="mb-2 block text-sm font-medium text-slate-300">
+                  Payment reference
+                </label>
+                <input id="bookingPaymentReference" name="paymentReference" required maxLength={200} className={getInputClass(Boolean(confirmationState.fieldErrors.paymentReference))} placeholder="UPI / bank / receipt reference" />
+                <FieldError fieldName="paymentReference" errors={confirmationState.fieldErrors} />
+              </div>
+              <div>
+                <label htmlFor="bookingPaymentAmount" className="mb-2 block text-sm font-medium text-slate-300">
+                  Amount received
+                </label>
+                <input id="bookingPaymentAmount" name="paymentAmount" type="number" min="0.01" step="0.01" required className={getInputClass(Boolean(confirmationState.fieldErrors.paymentAmount))} placeholder="0.00" />
+                <FieldError fieldName="paymentAmount" errors={confirmationState.fieldErrors} />
+              </div>
+              <div>
+                <label htmlFor="bookingPaymentMode" className="mb-2 block text-sm font-medium text-slate-300">
+                  Payment mode
+                </label>
+                <select id="bookingPaymentMode" name="paymentMode" required defaultValue="" className={getInputClass(Boolean(confirmationState.fieldErrors.paymentMode))}>
+                  <option value="" disabled>Select payment mode</option>
+                  <option value="upi">UPI</option>
+                  <option value="bank_transfer">Bank transfer</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="payment_gateway">Payment gateway</option>
+                  <option value="cash">Cash</option>
+                  <option value="other">Other</option>
+                </select>
+                <FieldError fieldName="paymentMode" errors={confirmationState.fieldErrors} />
+              </div>
+              <div>
+                <label htmlFor="bookingDocumentStatus" className="mb-2 block text-sm font-medium text-slate-300">
+                  Document state
+                </label>
+                <select id="bookingDocumentStatus" name="documentStatus" defaultValue="not_required" className={getInputClass(Boolean(confirmationState.fieldErrors.documentStatus))}>
+                  <option value="not_required">No document required</option>
+                  <option value="requested">Document requested</option>
+                  <option value="under_review">Document received for review</option>
+                </select>
+                <FieldError fieldName="documentStatus" errors={confirmationState.fieldErrors} />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="bookingDocumentName" className="mb-2 block text-sm font-medium text-slate-300">
+                Document / agreement reference <span className="text-slate-500">(required if pending)</span>
+              </label>
+              <input id="bookingDocumentName" name="documentName" maxLength={250} className={getInputClass(Boolean(confirmationState.fieldErrors.documentName))} placeholder="Agreement number or document name" />
+              <FieldError fieldName="documentName" errors={confirmationState.fieldErrors} />
+            </div>
+
+            <div>
+              <label htmlFor="bookingConfirmationReason" className="mb-2 block text-sm font-medium text-slate-300">
+                Confirmation reason
+              </label>
+              <textarea id="bookingConfirmationReason" name="confirmationReason" required maxLength={1000} className={getInputClass(Boolean(confirmationState.fieldErrors.confirmationReason))} placeholder="Why is this booking being finalized?" />
+              <FieldError fieldName="confirmationReason" errors={confirmationState.fieldErrors} />
+            </div>
+
+            <div>
+              <label htmlFor="bookingConfirmationNotes" className="mb-2 block text-sm font-medium text-slate-300">
+                Notes <span className="text-slate-500">(optional)</span>
+              </label>
+              <textarea id="bookingConfirmationNotes" name="confirmationNotes" maxLength={2000} className={getInputClass(Boolean(confirmationState.fieldErrors.confirmationNotes))} placeholder="Any handover or document context" />
+              <FieldError fieldName="confirmationNotes" errors={confirmationState.fieldErrors} />
+            </div>
+
             <FieldError
               fieldName="expectedUpdatedAt"
               errors={
-                wonState.fieldErrors
+                confirmationState.fieldErrors
               }
             />
 
+            <ActionMessage state={confirmationState} />
+
             <button
               type="submit"
-              disabled={isWonPending}
+              disabled={isConfirmationPending}
               className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isWonPending
-                ? "Marking won..."
-                : "Mark deal won"}
+              {isConfirmationPending
+                ? "Confirming booking..."
+                : "Confirm booking & mark won"}
             </button>
           </form>
         ) : null}
