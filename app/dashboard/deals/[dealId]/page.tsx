@@ -6,6 +6,10 @@ import {
 import DealDetailView from "@/components/dealos/DealDetailView";
 
 import {
+  getBookingPaymentSchedules,
+} from "@/lib/bookings/payment-schedule-service";
+
+import {
   requirePermissionAccess,
 } from "@/lib/auth/access-control";
 
@@ -140,6 +144,22 @@ function getSuccessMessage(
     ) === "1"
   ) {
     return "Booking confirmed, payment/document reference recorded, unit booked and deal marked as won.";
+  }
+
+  if (
+    getSingleValue(
+      searchParams.paymentScheduleCreated,
+    ) === "1"
+  ) {
+    return "Payment installment added successfully.";
+  }
+
+  if (
+    getSingleValue(
+      searchParams.scheduledPaymentRecorded,
+    ) === "1"
+  ) {
+    return "Scheduled payment recorded successfully.";
   }
 
   if (
@@ -279,6 +299,7 @@ export default async function DealDetailPage({
     offersResult,
     approvalsResult,
     statusHistoryResult,
+    paymentSchedulesResult,
   ] = await Promise.all([
     getDealOffers(
       organizationId,
@@ -293,6 +314,11 @@ export default async function DealDetailPage({
     getDealStatusHistory(
       organizationId,
       cleanDealId,
+    ),
+
+    getBookingPaymentSchedules(
+      organizationId,
+      dealResult.data.bookingId,
     ),
   ]);
 
@@ -311,6 +337,12 @@ export default async function DealDetailPage({
   if (!statusHistoryResult.ok) {
     throw new Error(
       statusHistoryResult.message,
+    );
+  }
+
+  if (!paymentSchedulesResult.ok) {
+    throw new Error(
+      paymentSchedulesResult.message,
     );
   }
 
@@ -338,6 +370,9 @@ export default async function DealDetailPage({
       }
       statusHistory={
         statusHistoryResult.data
+      }
+      paymentSchedules={
+        paymentSchedulesResult.data
       }
       access={access}
       isOwner={Boolean(context.membership?.isOwner)}

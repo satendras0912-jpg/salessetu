@@ -171,6 +171,44 @@ type ConfirmBookingAndWinDealParseResult =
       fieldErrors: DealOSFieldErrors;
     };
 
+type CreateBookingPaymentScheduleParseResult =
+  | {
+      success: true;
+      values: {
+        dealId: string;
+        bookingId: string;
+        dueDate: string;
+        amountDue: number;
+        paymentType: string;
+        notes: string;
+      };
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: DealOSFieldErrors;
+    };
+
+type RecordBookingSchedulePaymentParseResult =
+  | {
+      success: true;
+      values: {
+        dealId: string;
+        bookingId: string;
+        scheduleId: string;
+        amount: number;
+        paymentReference: string;
+        paymentMode: string;
+        paymentDate: string;
+        notes: string;
+      };
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: DealOSFieldErrors;
+    };
+
     type CreateDealOfferParseResult =
   | {
       success: true;
@@ -1380,6 +1418,70 @@ function parseConfirmBookingAndWinDealForm(
       documentStatus: documentStatus as "not_required" | "requested" | "under_review",
       documentName, confirmationReason, confirmationNotes,
     },
+  };
+}
+
+function parseCreateBookingPaymentScheduleForm(
+  formData: FormData,
+): CreateBookingPaymentScheduleParseResult {
+  const fieldErrors: DealOSFieldErrors = {};
+  const dealId = normalizeSingleLine(getFormString(formData, "dealId"));
+  const bookingId = normalizeSingleLine(getFormString(formData, "bookingId"));
+  const dueDate = normalizeSingleLine(getFormString(formData, "dueDate"));
+  const amountDue = Number(getFormString(formData, "amountDue"));
+  const paymentType = normalizeSingleLine(getFormString(formData, "paymentType"));
+  const notes = normalizeMultiline(getFormString(formData, "notes"));
+
+  if (!UUID_PATTERN.test(dealId)) addFieldError(fieldErrors, "dealId", "Select a valid deal.");
+  if (!UUID_PATTERN.test(bookingId)) addFieldError(fieldErrors, "bookingId", "Select a valid booking.");
+  const parsedDueDate = new Date(`${dueDate}T00:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) ||
+    Number.isNaN(parsedDueDate.getTime()) ||
+    parsedDueDate.toISOString().slice(0, 10) !== dueDate
+  ) {
+    addFieldError(fieldErrors, "dueDate", "Choose a valid due date.");
+  }
+  if (!Number.isFinite(amountDue) || amountDue <= 0) addFieldError(fieldErrors, "amountDue", "Enter a scheduled amount greater than zero.");
+  if (!paymentType) addFieldError(fieldErrors, "paymentType", "Choose an installment type.");
+  if (notes.length > 1000) addFieldError(fieldErrors, "notes", "Notes cannot exceed 1000 characters.");
+
+  if (hasFieldErrors(fieldErrors)) {
+    return { success: false, message: "Please correct the highlighted payment schedule fields.", fieldErrors };
+  }
+
+  return { success: true, values: { dealId, bookingId, dueDate, amountDue, paymentType, notes } };
+}
+
+function parseRecordBookingSchedulePaymentForm(
+  formData: FormData,
+): RecordBookingSchedulePaymentParseResult {
+  const fieldErrors: DealOSFieldErrors = {};
+  const dealId = normalizeSingleLine(getFormString(formData, "dealId"));
+  const bookingId = normalizeSingleLine(getFormString(formData, "bookingId"));
+  const scheduleId = normalizeSingleLine(getFormString(formData, "scheduleId"));
+  const amount = Number(getFormString(formData, "amount"));
+  const paymentReference = normalizeSingleLine(getFormString(formData, "paymentReference"));
+  const paymentMode = normalizeSingleLine(getFormString(formData, "paymentMode"));
+  const paymentDate = normalizeDealTimestamp(getFormString(formData, "paymentDate"));
+  const notes = normalizeMultiline(getFormString(formData, "notes"));
+
+  if (!UUID_PATTERN.test(dealId)) addFieldError(fieldErrors, "dealId", "Select a valid deal.");
+  if (!UUID_PATTERN.test(bookingId)) addFieldError(fieldErrors, "bookingId", "Select a valid booking.");
+  if (!UUID_PATTERN.test(scheduleId)) addFieldError(fieldErrors, "scheduleId", "Select an open installment.");
+  if (!Number.isFinite(amount) || amount <= 0) addFieldError(fieldErrors, "amount", "Enter an amount greater than zero.");
+  if (!paymentReference) addFieldError(fieldErrors, "paymentReference", "Enter the payment reference.");
+  if (!paymentMode) addFieldError(fieldErrors, "paymentMode", "Select the payment mode.");
+  if (!paymentDate) addFieldError(fieldErrors, "paymentDate", "Choose a valid payment date and time.");
+  if (notes.length > 1000) addFieldError(fieldErrors, "notes", "Notes cannot exceed 1000 characters.");
+
+  if (hasFieldErrors(fieldErrors)) {
+    return { success: false, message: "Please correct the highlighted payment fields.", fieldErrors };
+  }
+
+  return {
+    success: true,
+    values: { dealId, bookingId, scheduleId, amount, paymentReference, paymentMode, paymentDate: paymentDate ?? "", notes },
   };
 }
 
@@ -2962,6 +3064,92 @@ export async function confirmBookingAndWinDealAction(
   revalidateDealOSPaths(parsed.values.dealId);
   redirect(
     `/dashboard/deals/${parsed.values.dealId}?bookingConfirmedAndWon=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function createBookingPaymentScheduleAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    allOf: [DEALOS_PERMISSIONS.viewDeals, DEALOS_PERMISSIONS.handoffBooking],
+    loginRedirectTo: "/login?next=/dashboard/deals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  if (!context.membership?.isOwner) {
+    return createErrorState("Only the workspace owner can manage payment schedules.");
+  }
+
+  const parsed = parseCreateBookingPaymentScheduleForm(formData);
+  if (!parsed.success) {
+    return { status: "error", message: parsed.message, fieldErrors: parsed.fieldErrors };
+  }
+
+  const supabase = await createDealOSClient();
+  const { error } = await supabase.rpc("create_booking_payment_schedule", {
+    requested_deal_id: parsed.values.dealId,
+    requested_booking_id: parsed.values.bookingId,
+    requested_due_date: parsed.values.dueDate,
+    requested_amount_due: parsed.values.amountDue,
+    requested_payment_type: parsed.values.paymentType,
+    requested_notes: parsed.values.notes || null,
+  });
+
+  if (error) {
+    return createErrorState(error.message || "The payment installment could not be created.");
+  }
+
+  revalidateDealOSPaths(parsed.values.dealId);
+  redirect(
+    `/dashboard/deals/${parsed.values.dealId}?paymentScheduleCreated=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function recordBookingSchedulePaymentAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    allOf: [DEALOS_PERMISSIONS.viewDeals, DEALOS_PERMISSIONS.handoffBooking],
+    loginRedirectTo: "/login?next=/dashboard/deals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  if (!context.membership?.isOwner) {
+    return createErrorState("Only the workspace owner can record scheduled payments.");
+  }
+
+  const parsed = parseRecordBookingSchedulePaymentForm(formData);
+  if (!parsed.success) {
+    return { status: "error", message: parsed.message, fieldErrors: parsed.fieldErrors };
+  }
+
+  const supabase = await createDealOSClient();
+  const { error } = await supabase.rpc("record_booking_schedule_payment", {
+    requested_deal_id: parsed.values.dealId,
+    requested_booking_id: parsed.values.bookingId,
+    requested_schedule_id: parsed.values.scheduleId,
+    requested_amount: parsed.values.amount,
+    requested_payment_reference: parsed.values.paymentReference,
+    requested_payment_mode: parsed.values.paymentMode,
+    requested_payment_date: parsed.values.paymentDate,
+    requested_notes: parsed.values.notes || null,
+  });
+
+  if (error) {
+    return createErrorState(error.message || "The scheduled payment could not be recorded.");
+  }
+
+  revalidateDealOSPaths(parsed.values.dealId);
+  redirect(
+    `/dashboard/deals/${parsed.values.dealId}?scheduledPaymentRecorded=1`,
     RedirectType.replace,
   );
 }
