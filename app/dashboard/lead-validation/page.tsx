@@ -316,10 +316,12 @@ export default async function ManualLeadValidationPage({
 
                     {isOwner && lead.override ? (
                       <form
-                        action={revokeManualLeadValidationOverrideAction}
+                        action={revokeManualLeadValidationOverrideAction.bind(
+                          null,
+                          lead.id,
+                        )}
                         className="mt-4 space-y-3 rounded-xl border border-rose-500/40 bg-rose-500/5 p-4"
                       >
-                        <input type="hidden" name="leadId" value={lead.id} />
                         <p className="text-sm font-semibold text-rose-200">
                           Revoke owner override
                         </p>
@@ -350,10 +352,12 @@ export default async function ManualLeadValidationPage({
                     ) &&
                     !lead.override ? (
                       <form
-                        action={grantManualLeadValidationOverrideAction}
+                        action={grantManualLeadValidationOverrideAction.bind(
+                          null,
+                          lead.id,
+                        )}
                         className="mt-4 space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4"
                       >
-                        <input type="hidden" name="leadId" value={lead.id} />
                         <p className="text-sm font-semibold text-amber-200">
                           Owner override required for sales activity
                         </p>
@@ -383,10 +387,12 @@ export default async function ManualLeadValidationPage({
                   </div>
 
                   <form
-                    action={decideManualLeadValidationAction}
+                    action={decideManualLeadValidationAction.bind(
+                      null,
+                      lead.id,
+                    )}
                     className="w-full space-y-3 lg:max-w-lg"
                   >
-                    <input type="hidden" name="leadId" value={lead.id} />
 
                     <label className="block text-sm font-medium text-slate-300">
                       Decision reason
