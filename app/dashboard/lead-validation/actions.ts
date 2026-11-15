@@ -21,9 +21,10 @@ function pageHref(
 }
 
 export async function decideManualLeadValidationAction(
+  requestedLeadId: string,
   formData: FormData,
 ): Promise<void> {
-  const leadId = String(formData.get("leadId") ?? "").trim();
+  const leadId = requestedLeadId.trim();
   const decision = String(formData.get("decision") ?? "")
     .trim()
     .toLowerCase();
@@ -103,9 +104,10 @@ export async function decideManualLeadValidationAction(
 
 
 export async function grantManualLeadValidationOverrideAction(
+  requestedLeadId: string,
   formData: FormData,
 ): Promise<void> {
-  const leadId = String(formData.get("leadId") ?? "").trim();
+  const leadId = requestedLeadId.trim();
   const reason = String(formData.get("reason") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
 
@@ -169,9 +171,10 @@ export async function grantManualLeadValidationOverrideAction(
 
 
 export async function revokeManualLeadValidationOverrideAction(
+  requestedLeadId: string,
   formData: FormData,
 ): Promise<void> {
-  const leadId = String(formData.get("leadId") ?? "").trim();
+  const leadId = requestedLeadId.trim();
   const reason = String(formData.get("reason") ?? "").trim();
 
   if (!leadId || reason.length < 3 || reason.length > 500) {
