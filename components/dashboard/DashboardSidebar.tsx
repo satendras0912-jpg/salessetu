@@ -138,6 +138,14 @@ const navigationItems: NavigationItem[] = [
     exact: true,
   },
   {
+    href: "/dashboard/deals/collections",
+    label: "Payment Due Alerts",
+    description: "Overdue and upcoming collections",
+    permission: "deals.view",
+    ownerOnly: true,
+    exact: true,
+  },
+  {
     href: "/dashboard/team",
     label: "Sales Agents",
     description: "Invite and manage your team",
