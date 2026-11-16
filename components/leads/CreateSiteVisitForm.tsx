@@ -646,6 +646,11 @@ export default function CreateSiteVisitForm({
               type="datetime-local"
               required
               value={scheduledStartAtLocal}
+              onInput={(event) => {
+                setScheduledStartAtLocal(
+                  event.currentTarget.value,
+                );
+              }}
               onChange={(event) => {
                 setScheduledStartAtLocal(
                   event.target.value,
@@ -686,6 +691,11 @@ export default function CreateSiteVisitForm({
                 scheduledStartAtLocal ||
                 undefined
               }
+              onInput={(event) => {
+                setScheduledEndAtLocal(
+                  event.currentTarget.value,
+                );
+              }}
               onChange={(event) => {
                 setScheduledEndAtLocal(
                   event.target.value,
@@ -726,6 +736,11 @@ export default function CreateSiteVisitForm({
                 scheduledStartAtLocal ||
                 undefined
               }
+              onInput={(event) => {
+                setReminderAtLocal(
+                  event.currentTarget.value,
+                );
+              }}
               onChange={(event) => {
                 setReminderAtLocal(
                   event.target.value,
@@ -902,6 +917,11 @@ export default function CreateSiteVisitForm({
                       scheduledStartAtLocal ||
                       undefined
                     }
+                    onInput={(event) => {
+                      setPickupTimeLocal(
+                        event.currentTarget.value,
+                      );
+                    }}
                     onChange={(event) => {
                       setPickupTimeLocal(
                         event.target.value,
