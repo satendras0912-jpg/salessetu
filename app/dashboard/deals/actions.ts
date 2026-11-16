@@ -2815,6 +2815,106 @@ export async function linkDealBookingAction(
   );
 }
 
+export async function createDealBookingHoldAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    allOf: [
+      DEALOS_PERMISSIONS.viewDeals,
+      DEALOS_PERMISSIONS.handoffBooking,
+    ],
+    loginRedirectTo: "/login?next=/dashboard/deals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  if (!context.membership?.isOwner) {
+    return createErrorState(
+      "Only the workspace owner can create a booking hold.",
+    );
+  }
+
+  const dealId = normalizeSingleLine(getFormString(formData, "dealId"));
+  const expectedUpdatedAt = normalizeDealExpectedUpdatedAt(
+    getFormString(formData, "expectedUpdatedAt"),
+  );
+  const expiryInput = normalizeSingleLine(
+    getFormString(formData, "expiresAtUtc"),
+  );
+  const notes = normalizeMultiline(getFormString(formData, "reservationNotes"));
+  const fieldErrors: DealOSFieldErrors = {};
+
+  if (!UUID_PATTERN.test(dealId)) {
+    addFieldError(fieldErrors, "dealId", "A valid deal is required.");
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  const expiresAt = new Date(expiryInput);
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(expiryInput) ||
+    Number.isNaN(expiresAt.getTime())
+  ) {
+    addFieldError(
+      fieldErrors,
+      "expiresAt",
+      "Choose a valid booking-hold expiry in your local time.",
+    );
+  } else if (expiresAt.getTime() <= Date.now()) {
+    addFieldError(
+      fieldErrors,
+      "expiresAt",
+      "Booking-hold expiry must be in the future.",
+    );
+  }
+
+  if (notes.length < 3 || notes.length > 500) {
+    addFieldError(
+      fieldErrors,
+      "reservationNotes",
+      "Hold reason must contain between 3 and 500 characters.",
+    );
+  }
+
+  if (hasFieldErrors(fieldErrors)) {
+    return createErrorState(
+      "Please correct the highlighted booking-hold fields.",
+      fieldErrors,
+    );
+  }
+
+  const supabase = await createDealOSClient();
+  const { error } = await supabase.rpc(
+    "create_deal_booking_hold",
+    {
+      requested_deal_id: dealId,
+      requested_expected_updated_at: expectedUpdatedAt,
+      requested_expires_at: expiresAt.toISOString(),
+      requested_notes: notes,
+    },
+  );
+
+  if (error) {
+    return createErrorState(
+      error.message || "The booking hold could not be created.",
+    );
+  }
+
+  revalidateDealOSPaths(dealId);
+  redirect(
+    `/dashboard/deals/${dealId}?bookingReservation=1`,
+    RedirectType.replace,
+  );
+}
+
 export async function reserveBookingInventoryAction(
   previousState: DealOSActionState,
   formData: FormData,
