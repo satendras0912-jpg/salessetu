@@ -6,6 +6,8 @@ import BookingPaymentSchedulePanel from "@/components/dealos/BookingPaymentSched
 
 import DealLifecycleActions from "@/components/dealos/DealLifecycleActions";
 
+import DealBookingHoldCreator from "@/components/dealos/DealBookingHoldCreator";
+
 import DealUpdateForm from "@/components/dealos/DealUpdateForm";
 
 import DealStatusTransitionForm from "@/components/dealos/DealStatusTransitionForm";
@@ -491,6 +493,14 @@ export default function DealDetailView({
   access={access}
         isOwner={isOwner}
 />
+
+      <DealBookingHoldCreator
+        dealId={deal.id}
+        updatedAt={deal.updatedAt}
+        status={deal.status}
+        bookingId={deal.bookingId}
+        isOwner={isOwner}
+      />
 
       {deal.status === "won" &&
       deal.bookingId ? (
