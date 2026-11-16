@@ -602,6 +602,16 @@ export type LinkDealBookingValues = {
   bookingId: string;
 };
 
+export type CreateDealBookingHoldValues = {
+  dealId: string;
+
+  expectedUpdatedAt: string;
+
+  expiresAt: string;
+
+  notes: string;
+};
+
 
 export type MarkDealWonValues = {
   dealId: string;
@@ -615,6 +625,8 @@ export type MarkDealWonValues = {
 // ============================================================
 
 export type DealOSDataAccess = {
+  isOwner: boolean;
+
   canViewDeals: boolean;
   canViewAllDeals: boolean;
 

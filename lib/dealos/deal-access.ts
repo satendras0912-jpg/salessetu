@@ -40,6 +40,8 @@ export function buildDealOSDataAccess({
   isOwner,
 }: DealOSAccessInput): DealOSDataAccess {
   return {
+    isOwner,
+
     canViewDeals:
       hasAccess(
         permissionCodes,

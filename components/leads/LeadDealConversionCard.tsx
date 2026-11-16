@@ -7,7 +7,7 @@ import {
 } from "react";
 
 import {
-  createDealAction,
+  requestDealConversionAction,
 } from "@/app/dashboard/deals/actions";
 
 import {
@@ -70,7 +70,7 @@ export default function LeadDealConversionCard({
     formAction,
     isPending,
   ] = useActionState(
-    createDealAction,
+    requestDealConversionAction,
     INITIAL_DEALOS_ACTION_STATE,
   );
 
@@ -100,12 +100,13 @@ export default function LeadDealConversionCard({
       </p>
 
       <h2 className="mt-3 text-2xl font-semibold text-white">
-        Move qualified lead into DealOS
+        Request Match-to-Deal approval
       </h2>
 
       <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-        Deal creation is gated by manual validation and a completed site visit.
-        This action does not auto-route the lead or notify the customer.
+        A suitable manual inventory match, approved validation and completed site
+        visit are required. The workspace owner must approve before DealOS creates
+        a deal. This does not reserve inventory, route work or notify a customer.
       </p>
 
       <div className="mt-5 rounded-2xl border border-slate-700 bg-slate-950/50 px-4 py-3 text-sm leading-6 text-slate-300">
@@ -158,6 +159,23 @@ export default function LeadDealConversionCard({
             </select>
           </div>
 
+          <div>
+            <label
+              htmlFor="dealConversionNotes"
+              className="mb-2 block text-sm font-medium text-slate-200"
+            >
+              Request context (optional)
+            </label>
+            <textarea
+              id="dealConversionNotes"
+              name="notes"
+              maxLength={2000}
+              rows={3}
+              placeholder="Why should the owner approve this deal conversion?"
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+            />
+          </div>
+
           {state.status !== "idle" &&
           state.message ? (
             <p
@@ -178,8 +196,8 @@ export default function LeadDealConversionCard({
             className="inline-flex min-w-48 items-center justify-center rounded-xl bg-cyan-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending
-              ? "Creating deal..."
-              : "Create deal"}
+              ? "Sending request..."
+              : "Request owner approval"}
           </button>
         </form>
       ) : (

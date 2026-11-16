@@ -112,6 +112,14 @@ function getSuccessMessage(
 
   if (
     getSingleValue(
+      searchParams.bookingHoldCreated,
+    ) === "1"
+  ) {
+    return "Temporary booking hold created and linked to this deal.";
+  }
+
+  if (
+    getSingleValue(
       searchParams.dealWon,
     ) === "1"
   ) {

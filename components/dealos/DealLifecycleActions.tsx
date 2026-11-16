@@ -6,6 +6,7 @@ import {
 
 import {
   cancelDealAction,
+  createDealBookingHoldAction,
   linkDealBookingAction,
   markDealLostAction,
   markDealWonAction,
@@ -57,6 +58,15 @@ function getInputClass(
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+function getDefaultHoldExpiry(): string {
+  const value = new Date(Date.now() + 2 * 60 * 60 * 1000);
+  const offset = value.getTimezoneOffset() * 60_000;
+
+  return new Date(value.getTime() - offset)
+    .toISOString()
+    .slice(0, 16);
 }
 
 function FieldError({
@@ -162,6 +172,15 @@ export default function DealLifecycleActions({
   );
 
   const [
+    bookingHoldState,
+    bookingHoldAction,
+    isBookingHoldPending,
+  ] = useActionState(
+    createDealBookingHoldAction,
+    INITIAL_DEALOS_ACTION_STATE,
+  );
+
+  const [
     wonState,
     wonAction,
     isWonPending,
@@ -199,6 +218,11 @@ export default function DealLifecycleActions({
     deal.status ===
       "booking_ready";
 
+  const canCreateBookingHold =
+    access.isOwner &&
+    canLinkBooking &&
+    !deal.bookingId;
+
   const canMarkWon =
     access.canMarkWon &&
     access.canHandoffBooking &&
@@ -213,6 +237,7 @@ export default function DealLifecycleActions({
     canMarkLost ||
     canCancelDeal ||
     canLinkBooking ||
+    canCreateBookingHold ||
     canMarkWon;
 
   if (!hasAvailableActions) {
@@ -516,6 +541,104 @@ export default function DealLifecycleActions({
           </form>
         ) : null}
 
+        {canCreateBookingHold ? (
+          <form
+            action={bookingHoldAction}
+            noValidate
+            className="space-y-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5"
+          >
+            <input type="hidden" name="dealId" value={deal.id} />
+            <input
+              type="hidden"
+              name="expectedUpdatedAt"
+              value={deal.updatedAt}
+            />
+
+            <div>
+              <p className="text-sm font-semibold text-amber-200">
+                Create temporary booking hold
+              </p>
+
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                Owner-only: creates a draft booking, reserves this deal&apos;s
+                inventory unit until the chosen expiry, and links it to the deal.
+                No payment, customer contact, routing, or notification is created.
+              </p>
+            </div>
+
+            <ActionMessage state={bookingHoldState} />
+
+            <div>
+              <label
+                htmlFor="bookingHoldExpiresAt"
+                className="mb-2 block text-sm font-medium text-slate-300"
+              >
+                Hold expiry
+              </label>
+
+              <input
+                id="bookingHoldExpiresAt"
+                name="expiresAt"
+                type="datetime-local"
+                required
+                defaultValue={getDefaultHoldExpiry()}
+                aria-invalid={Boolean(bookingHoldState.fieldErrors.expiresAt)}
+                aria-describedby={
+                  bookingHoldState.fieldErrors.expiresAt
+                    ? "expiresAt-error"
+                    : undefined
+                }
+                className={getInputClass(Boolean(bookingHoldState.fieldErrors.expiresAt))}
+              />
+
+              <FieldError fieldName="expiresAt" errors={bookingHoldState.fieldErrors} />
+            </div>
+
+            <div>
+              <label
+                htmlFor="bookingHoldNotes"
+                className="mb-2 block text-sm font-medium text-slate-300"
+              >
+                Hold reason
+              </label>
+
+              <textarea
+                id="bookingHoldNotes"
+                name="notes"
+                required
+                minLength={3}
+                maxLength={500}
+                rows={3}
+                placeholder="Why is this temporary booking hold required?"
+                aria-invalid={Boolean(bookingHoldState.fieldErrors.notes)}
+                aria-describedby={
+                  bookingHoldState.fieldErrors.notes
+                    ? "notes-error"
+                    : undefined
+                }
+                className={getInputClass(Boolean(bookingHoldState.fieldErrors.notes))}
+              />
+
+              <FieldError fieldName="notes" errors={bookingHoldState.fieldErrors} />
+            </div>
+
+            <FieldError
+              fieldName="expectedUpdatedAt"
+              errors={bookingHoldState.fieldErrors}
+            />
+
+            <button
+              type="submit"
+              disabled={isBookingHoldPending}
+              className="inline-flex w-full items-center justify-center rounded-xl bg-amber-300 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isBookingHoldPending
+                ? "Creating booking hold..."
+                : "Create booking hold"}
+            </button>
+          </form>
+        ) : null}
+
         {canLinkBooking ? (
           <form
             action={bookingAction}
@@ -640,9 +763,9 @@ export default function DealLifecycleActions({
               </p>
 
               <p className="mt-1 text-xs leading-5 text-slate-400">
-                Booking is linked. Finalize
-                this booking-ready deal as
-                won.
+                A linked, confirmed booking is required
+                before this booking-ready deal can be
+                finalized as won.
               </p>
             </div>
 

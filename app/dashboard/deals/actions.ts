@@ -13,6 +13,7 @@ import {
 import {
   cancelCommercialApproval,
   cancelDeal,
+  createDealBookingHold,
   changeDealStatus,
   createDeal,
   createDealOffer,
@@ -37,6 +38,11 @@ import {
   getCurrentDealOSAccessContext,
 } from "@/lib/dealos/deal-access";
 
+import {
+  decideDealConversionRequest,
+  requestDealConversion,
+} from "@/lib/dealos/deal-conversion-service";
+
 import type {
   DealOSActionState,
   DealOSFieldErrors,
@@ -51,6 +57,7 @@ import type {
   PutDealOnHoldValues,
   CancelDealValues,
   LinkDealBookingValues,
+  CreateDealBookingHoldValues,
   MarkDealWonValues,
   CreateDealOfferValues,
   DealOfferParty,
@@ -125,6 +132,17 @@ type CreateDealParseResult =
   | {
       success: true;
       values: LinkDealBookingValues;
+    }
+  | {
+      success: false;
+      message: string;
+      fieldErrors: DealOSFieldErrors;
+    };
+
+type CreateDealBookingHoldParseResult =
+  | {
+      success: true;
+      values: CreateDealBookingHoldValues;
     }
   | {
       success: false;
@@ -1239,6 +1257,72 @@ function parseLinkDealBookingForm(
   };
 }
 
+function parseCreateDealBookingHoldForm(
+  formData: FormData,
+): CreateDealBookingHoldParseResult {
+  const fieldErrors: DealOSFieldErrors = {};
+  const dealId = normalizeSingleLine(getFormString(formData, "dealId"));
+  const expectedUpdatedAt = normalizeDealExpectedUpdatedAt(
+    getFormString(formData, "expectedUpdatedAt"),
+  );
+  const expiresAt = normalizeDealTimestamp(
+    getFormString(formData, "expiresAt"),
+  );
+  const notes = normalizeMultiline(getFormString(formData, "notes"));
+
+  if (!UUID_PATTERN.test(dealId)) {
+    addFieldError(fieldErrors, "dealId", "Select a valid deal.");
+  }
+
+  if (!expectedUpdatedAt) {
+    addFieldError(
+      fieldErrors,
+      "expectedUpdatedAt",
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  if (!expiresAt) {
+    addFieldError(
+      fieldErrors,
+      "expiresAt",
+      "Enter a valid hold expiry date and time.",
+    );
+  } else if (new Date(expiresAt).getTime() <= Date.now()) {
+    addFieldError(
+      fieldErrors,
+      "expiresAt",
+      "The hold expiry must be in the future.",
+    );
+  }
+
+  if (notes.length < 3 || notes.length > 500) {
+    addFieldError(
+      fieldErrors,
+      "notes",
+      "Enter a hold reason between 3 and 500 characters.",
+    );
+  }
+
+  if (hasFieldErrors(fieldErrors)) {
+    return {
+      success: false,
+      message: "Please correct the highlighted booking-hold fields.",
+      fieldErrors,
+    };
+  }
+
+  return {
+    success: true,
+    values: {
+      dealId,
+      expectedUpdatedAt: expectedUpdatedAt ?? "",
+      expiresAt: expiresAt ?? "",
+      notes,
+    },
+  };
+}
+
 function parseMarkDealWonForm(
   formData: FormData,
 ): MarkDealWonParseResult {
@@ -2065,6 +2149,106 @@ export async function createDealAction(
   );
 }
 
+export async function requestDealConversionAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    loginRedirectTo: "/login?next=/dashboard/leads",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+  const dealAccessContext = await getCurrentDealOSAccessContext();
+
+  if (
+    !dealAccessContext ||
+    dealAccessContext.organizationId !== context.organization?.id ||
+    !dealAccessContext.access.canCreateDeal
+  ) {
+    return createErrorState(
+      "You do not have permission to request a deal conversion.",
+    );
+  }
+
+  const leadId = normalizeSingleLine(getFormString(formData, "leadId"));
+  const siteVisitId = normalizeSingleLine(getFormString(formData, "siteVisitId"));
+  const rawNotes = normalizeMultiline(getFormString(formData, "notes"));
+  const notes = rawNotes || null;
+
+  if (!UUID_PATTERN.test(leadId) || !UUID_PATTERN.test(siteVisitId)) {
+    return createErrorState("Select a valid lead and completed site visit.");
+  }
+
+  if (notes && notes.length > 2_000) {
+    return createErrorState("Request notes cannot exceed 2,000 characters.");
+  }
+
+  const result = await requestDealConversion(leadId, siteVisitId, notes);
+
+  if (!result.ok) {
+    return createErrorState(result.message);
+  }
+
+  revalidatePath(`/dashboard/leads/${leadId}`);
+  revalidatePath("/dashboard/deals");
+
+  return {
+    status: "success",
+    message: "Deal conversion request sent for owner approval. No deal, reservation, routing or customer notification was created.",
+    fieldErrors: {},
+  };
+}
+
+export async function decideDealConversionRequestAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+  const { context } = await requirePermissionAccess({
+    loginRedirectTo: "/login?next=/dashboard/deals/conversions",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+  const permissionContext = await getCurrentDealOSAccessContext();
+  const requestId = normalizeSingleLine(getFormString(formData, "requestId"));
+  const decision = normalizeSingleLine(getFormString(formData, "decision"));
+  const reason = normalizeMultiline(getFormString(formData, "reason"));
+
+  if (!context.organization?.id || !permissionContext || !UUID_PATTERN.test(requestId)) {
+    return createErrorState("Select a valid deal conversion request.");
+  }
+
+  // Database RPC repeats the owner check. This application guard only avoids a
+  // misleading submit attempt for users without DealOS access.
+  if (!permissionContext.access.canCreateDeal) {
+    return createErrorState("You do not have permission to decide deal conversions.");
+  }
+
+  if ((decision !== "approved" && decision !== "rejected") || reason.length < 3 || reason.length > 500) {
+    return createErrorState("Choose approve or reject and provide a reason between 3 and 500 characters.");
+  }
+
+  const result = await decideDealConversionRequest(
+    requestId,
+    decision,
+    reason,
+  );
+
+  if (!result.ok) return createErrorState(result.message);
+
+  revalidatePath("/dashboard/deals");
+  revalidatePath("/dashboard/deals/conversions");
+
+  return {
+    status: "success",
+    message: result.dealId
+      ? "Owner approval recorded and DealOS deal created. No reservation, routing or customer notification was triggered."
+      : "Owner rejection recorded. No deal was created.",
+    fieldErrors: {},
+    dealId: result.dealId ?? undefined,
+  };
+}
+
 export async function updateDealAction(
   previousState: DealOSActionState,
   formData: FormData,
@@ -2494,6 +2678,66 @@ export async function linkDealBookingAction(
 
   redirect(
     `/dashboard/deals/${dealId}?bookingLinked=1`,
+    RedirectType.replace,
+  );
+}
+
+export async function createDealBookingHoldAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    allOf: [
+      DEALOS_PERMISSIONS.viewDeals,
+      DEALOS_PERMISSIONS.handoffBooking,
+    ],
+    loginRedirectTo: "/login?next=/dashboard/deals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  const organizationId = context.organization?.id?.trim();
+
+  if (!organizationId) {
+    return createErrorState(
+      "An active organization context is required to create a booking hold.",
+    );
+  }
+
+  if (!context.membership?.isOwner) {
+    return createErrorState(
+      "Only the workspace owner can create a booking hold.",
+    );
+  }
+
+  const parsed = parseCreateDealBookingHoldForm(formData);
+
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.message,
+      fieldErrors: parsed.fieldErrors,
+    };
+  }
+
+  const result = await createDealBookingHold(
+    organizationId,
+    parsed.values,
+  );
+
+  if (!result.ok) {
+    return mapDealOSActionFailure(
+      result,
+      "The deal changed after this booking hold was opened.",
+    );
+  }
+
+  const dealId = result.dealId ?? parsed.values.dealId;
+  revalidateDealOSPaths(dealId);
+
+  redirect(
+    `/dashboard/deals/${dealId}?bookingHoldCreated=1`,
     RedirectType.replace,
   );
 }

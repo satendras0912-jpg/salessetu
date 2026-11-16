@@ -11,6 +11,7 @@ import type {
   DealRow,
   DealSummary,
   DecideCommercialApprovalValues,
+  CreateDealBookingHoldValues,
   LinkDealBookingValues,
   MarkDealLostValues,
   MarkDealWonValues,
@@ -61,6 +62,7 @@ export type DealOSOperation =
   | "decide_approval"
   | "cancel_approval"
   | "link_booking"
+  | "create_booking_hold"
   | "read";
 
 function clampDealListInteger(
@@ -278,6 +280,9 @@ function getDefaultOperationMessage(
     case "link_booking":
       return "The booking handoff could not be completed.";
 
+    case "create_booking_hold":
+      return "The booking hold could not be created.";
+
           case "read":
       return "The deal data could not be loaded.";
   }
@@ -305,6 +310,9 @@ function getTimeoutMessage(
 
     case "link_booking":
       return "The request timed out. Reload the deal and booking state before trying again.";
+
+    case "create_booking_hold":
+      return "The request timed out. Reload the deal before trying again to verify the booking hold.";
 
           case "read":
       return "The request timed out while loading the deal. Please try again.";
@@ -2950,6 +2958,110 @@ export async function linkDealBooking(
     code: "conflict",
     message:
       "This deal was changed by another user or request. Reload the latest version before trying again.",
+  };
+}
+
+export async function createDealBookingHold(
+  organizationId: string,
+  values: CreateDealBookingHoldValues,
+): Promise<DealOSServiceResult> {
+  const cleanOrganizationId =
+    normalizeDealRequiredUuid(
+      organizationId,
+    );
+
+  const cleanDealId =
+    normalizeDealRequiredUuid(
+      values.dealId,
+    );
+
+  const cleanExpectedUpdatedAt =
+    normalizeDealExpectedUpdatedAt(
+      values.expectedUpdatedAt,
+    );
+
+  const cleanExpiresAt =
+    normalizeDealTimestamp(
+      values.expiresAt,
+    );
+
+  const cleanNotes =
+    normalizeDealOptionalText(
+      values.notes,
+    );
+
+  if (!cleanOrganizationId || !cleanDealId) {
+    return createDealValidationFailure(
+      "A valid organization and deal are required.",
+    );
+  }
+
+  if (!cleanExpectedUpdatedAt) {
+    return createDealValidationFailure(
+      "The original deal update timestamp is invalid.",
+    );
+  }
+
+  if (!cleanExpiresAt) {
+    return createDealValidationFailure(
+      "Enter a valid booking-hold expiry time.",
+    );
+  }
+
+  if (!cleanNotes || cleanNotes.length < 3 || cleanNotes.length > 500) {
+    return createDealValidationFailure(
+      "Enter a booking-hold reason between 3 and 500 characters.",
+    );
+  }
+
+  const supabase =
+    await createDealOSClient();
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "create_deal_booking_hold",
+    {
+      requested_deal_id: cleanDealId,
+      requested_expected_updated_at:
+        cleanExpectedUpdatedAt,
+      requested_expires_at: cleanExpiresAt,
+      requested_notes: cleanNotes,
+    },
+  );
+
+  if (error) {
+    return mapDealOSDatabaseError(
+      error,
+      "create_booking_hold",
+    );
+  }
+
+  const row =
+    (
+      Array.isArray(data)
+        ? data[0]
+        : data
+    ) as {
+      deal_id?: unknown;
+    } | null;
+
+  if (
+    !row ||
+    row.deal_id !== cleanDealId
+  ) {
+    return {
+      ok: false,
+      code: "database_error",
+      message:
+        "The booking hold may have been created, but its result could not be verified. Reload the deal before trying again.",
+    };
+  }
+
+  return {
+    ok: true,
+    dealId: cleanDealId,
   };
 }
 

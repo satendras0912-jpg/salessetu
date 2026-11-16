@@ -49,6 +49,10 @@ import {
 } from "@/lib/inventory/lead-inventory-match-service";
 
 import {
+  getLeadInventoryMatchReviews,
+} from "@/lib/inventory/lead-inventory-match-review-service";
+
+import {
   createClient,
 } from "@/lib/supabase/server";
 
@@ -291,6 +295,29 @@ function getSuccessMessage(
     return "Follow-up completed successfully.";
   }
 
+  const inventoryMatchWasReviewed =
+    getSingleValue(searchParams.matchReview) === "1";
+
+  if (inventoryMatchWasReviewed) {
+    const decision = getSingleValue(
+      searchParams.matchReviewDecision,
+    );
+
+    return decision === "not_suitable"
+      ? "Inventory suggestion marked not suitable."
+      : "Inventory suggestion marked suitable.";
+  }
+
+  const inventoryMatchReviewError = getSingleValue(
+    searchParams.matchReviewError,
+  );
+
+  if (inventoryMatchReviewError) {
+    return getSingleValue(
+      searchParams.matchReviewDecision,
+    ) || "Inventory match review could not be saved.";
+  }
+
     const siteVisitWasCreated =
     getSingleValue(
       searchParams.siteVisitCreated,
@@ -447,6 +474,15 @@ export default async function LeadDetailPage({
       "inventory.view",
     );
 
+  const canReviewInventorySuggestions =
+    canViewInventorySuggestions &&
+    (
+      isOwner || hasPermission(
+        permissionCodes,
+        "inventory.match_review",
+      )
+    );
+
   const detailAccess =
     buildLeadDetailAccess(
       permissionCodes,
@@ -541,6 +577,14 @@ export default async function LeadDetailPage({
     lead.budgetMin !== null ||
     lead.budgetMax !== null,
   );
+
+  const inventoryMatchReviews =
+    canViewInventorySuggestions && inventorySuggestions.length > 0
+      ? await getLeadInventoryMatchReviews(
+          organizationId,
+          cleanLeadId,
+        )
+      : [];
 
   const operationalAccess =
     buildLeadOperationalAccess({
@@ -672,8 +716,11 @@ export default async function LeadDetailPage({
 
       {canViewInventorySuggestions ? (
         <LeadInventoryMatchSuggestions
+          leadId={lead.id}
           suggestions={inventorySuggestions}
           hasRequirements={hasInventoryMatchRequirements}
+          reviews={inventoryMatchReviews}
+          canReview={canReviewInventorySuggestions}
         />
       ) : null}
 
