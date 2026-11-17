@@ -208,6 +208,11 @@ export default async function ReservationMonitoringPage() {
   const activeUnitIds = new Set(
     activeReservations.map((reservation) => reservation.inventory_unit_id),
   );
+  const confirmedBookingUnitIds = new Set(
+    reservations
+      .filter((reservation) => reservation.bookings?.booking_status === "confirmed")
+      .map((reservation) => reservation.inventory_unit_id),
+  );
   const releasedToday = reservations.filter(
     (reservation) =>
       ["expired", "released"].includes(reservation.status) &&
@@ -219,7 +224,10 @@ export default async function ReservationMonitoringPage() {
       return false;
     }
 
-    if (activeUnitIds.has(reservation.inventory_unit_id)) {
+    if (
+      activeUnitIds.has(reservation.inventory_unit_id) ||
+      confirmedBookingUnitIds.has(reservation.inventory_unit_id)
+    ) {
       return false;
     }
 
@@ -361,7 +369,7 @@ export default async function ReservationMonitoringPage() {
       <section className="grid gap-6 xl:grid-cols-2">
         <article className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
           <h2 className="text-xl font-semibold text-white">Unit reconciliation</h2>
-          <p className="mt-1 text-sm text-slate-400">Expired or released holds must return the unit to available / open unless another active hold exists.</p>
+          <p className="mt-1 text-sm text-slate-400">Expired or released holds must return the unit to available / open unless another active hold or a confirmed booking owns the unit.</p>
           {reconciliationIssues.length ? (
             <ul className="mt-5 space-y-3">
               {reconciliationIssues.map((reservation) => (
