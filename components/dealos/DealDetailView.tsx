@@ -4,6 +4,8 @@ import DealCommercialActions from "@/components/dealos/DealCommercialActions";
 
 import BookingPaymentSchedulePanel from "@/components/dealos/BookingPaymentSchedulePanel";
 
+import BookingAgreementChecklistPanel from "@/components/dealos/BookingAgreementChecklistPanel";
+
 import DealLifecycleActions from "@/components/dealos/DealLifecycleActions";
 
 import DealBookingHoldCreator from "@/components/dealos/DealBookingHoldCreator";
@@ -33,6 +35,11 @@ import type {
   BookingPaymentReceiptSubmission,
 } from "@/lib/bookings/payment-receipt-approval-service";
 
+import type {
+  BookingDocumentChecklistAudit,
+  BookingDocumentChecklistItem,
+} from "@/lib/bookings/agreement-document-checklist-service";
+
 type DealDetailViewProps = {
   deal: DealSummary;
 
@@ -52,6 +59,12 @@ type DealDetailViewProps = {
 
   paymentReceiptSubmissions:
     BookingPaymentReceiptSubmission[];
+
+  agreementChecklistItems:
+    BookingDocumentChecklistItem[];
+
+  agreementChecklistAudit:
+    BookingDocumentChecklistAudit[];
 
   access: DealOSDataAccess;
 
@@ -322,6 +335,8 @@ export default function DealDetailView({
   statusHistory,
   paymentSchedules,
   paymentReceiptSubmissions,
+  agreementChecklistItems,
+  agreementChecklistAudit,
   access,
   isOwner,
   currentUserId,
@@ -511,6 +526,17 @@ export default function DealDetailView({
           schedules={paymentSchedules}
 
           submissions={paymentReceiptSubmissions}
+          isOwner={isOwner}
+        />
+      ) : null}
+
+      {deal.status === "won" &&
+      deal.bookingId ? (
+        <BookingAgreementChecklistPanel
+          dealId={deal.id}
+          bookingId={deal.bookingId}
+          items={agreementChecklistItems}
+          audit={agreementChecklistAudit}
           isOwner={isOwner}
         />
       ) : null}
