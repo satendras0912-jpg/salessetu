@@ -1216,6 +1216,18 @@ export async function getDeals(
         )
       : null;
 
+  const rawLeadId =
+    normalizeDealOptionalText(
+      filters.leadId,
+    );
+
+  const cleanLeadId =
+    rawLeadId
+      ? normalizeDealRequiredUuid(
+          rawLeadId,
+        )
+      : null;
+
   if (
     rawAssignedTo &&
     !cleanAssignedTo
@@ -1225,6 +1237,18 @@ export async function getDeals(
       code: "validation",
       message:
         "A valid assigned user is required.",
+    };
+  }
+
+  if (
+    rawLeadId &&
+    !cleanLeadId
+  ) {
+    return {
+      ok: false,
+      code: "validation",
+      message:
+        "A valid lead is required.",
     };
   }
 
@@ -1265,6 +1289,13 @@ export async function getDeals(
     query = query.eq(
       "assigned_to",
       cleanAssignedTo,
+    );
+  }
+
+  if (cleanLeadId) {
+    query = query.eq(
+      "lead_id",
+      cleanLeadId,
     );
   }
 

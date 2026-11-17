@@ -50,12 +50,21 @@ export default function DealFilters({
   key={[
     filters.status ?? "",
     filters.assignedTo ?? "",
+    filters.leadId ?? "",
     filters.pageSize ?? 25,
   ].join(":")}
   action="/dashboard/deals"
   method="get"
         className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
       >
+        {filters.leadId ? (
+          <input
+            type="hidden"
+            name="leadId"
+            value={filters.leadId}
+          />
+        ) : null}
+
         <label>
           <span className="mb-2 block text-sm font-medium text-slate-300">
             Deal status

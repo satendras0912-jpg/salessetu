@@ -108,6 +108,15 @@ function createPageHref(
     );
   }
 
+  if (
+    filters.leadId
+  ) {
+    params.set(
+      "leadId",
+      filters.leadId,
+    );
+  }
+
   params.set(
     "page",
     String(page),
@@ -176,6 +185,12 @@ export default async function DealOperationsPage({
       assignedTo:
         getSingleValue(
           rawParams.assignedTo,
+        ).trim() ||
+        undefined,
+
+      leadId:
+        getSingleValue(
+          rawParams.leadId,
         ).trim() ||
         undefined,
 
@@ -357,6 +372,21 @@ export default async function DealOperationsPage({
           assignees
         }
       />
+
+      {filters.leadId ? (
+        <div className="flex flex-col justify-between gap-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-4 text-sm sm:flex-row sm:items-center">
+          <p className="text-cyan-100">
+            Viewing deals linked to this lead.
+          </p>
+
+          <Link
+            href="/dashboard/deals"
+            className="font-semibold text-cyan-300 transition hover:text-cyan-200"
+          >
+            View all accessible deals
+          </Link>
+        </div>
+      ) : null}
 
       <div className="flex flex-col justify-between gap-3 text-sm text-slate-500 sm:flex-row sm:items-center">
         <p>

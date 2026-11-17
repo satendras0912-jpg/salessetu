@@ -26,6 +26,7 @@ type LeadDetailViewProps = {
   access: LeadDetailAccess;
   canEditLead: boolean;
   successMessage?: string | null;
+  dealListHref?: string | null;
 
   currentAssignment?:
     | LeadDetailAssignmentView
@@ -539,6 +540,7 @@ export default function LeadDetailView({
   access,
   canEditLead,
   successMessage,
+  dealListHref,
   currentAssignment,
 }: LeadDetailViewProps) {
   const leadRecord =
@@ -778,6 +780,15 @@ export default function LeadDetailView({
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
+            {dealListHref ? (
+              <Link
+                href={dealListHref}
+                className="inline-flex items-center justify-center rounded-xl border border-cyan-500/60 px-6 py-3 text-sm font-semibold text-cyan-300 transition hover:border-cyan-300 hover:bg-cyan-500/10 hover:text-cyan-200 focus:outline-none focus:ring-2 focus:ring-cyan-300"
+              >
+                Open linked deals
+              </Link>
+            ) : null}
+
             {canEditLead && leadId ? (
               <Link
                 href={`/dashboard/leads/${leadId}/edit`}
