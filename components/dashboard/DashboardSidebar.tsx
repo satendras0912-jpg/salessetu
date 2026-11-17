@@ -36,6 +36,12 @@ const navigationItems: NavigationItem[] = [
     permission: "leads.view",
   },
   {
+    href: "/dashboard/deals",
+    label: "Deals",
+    description: "Pipeline, booking and collections",
+    permission: "deals.view",
+  },
+  {
     href: "/dashboard/lead-validation",
     label: "Lead Validation",
     description: "Manual qualification queue",

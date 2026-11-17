@@ -302,6 +302,7 @@ export type DealStatusHistoryRow = {
 export type DealListFilters = {
   status?: DealStatus;
   assignedTo?: string;
+  leadId?: string;
 
   page?: number;
   pageSize?: number;

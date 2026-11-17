@@ -468,6 +468,13 @@ export default async function LeadDetailPage({
       )
     );
 
+  const canViewDeals =
+    isOwner ||
+    hasPermission(
+      permissionCodes,
+      "deals.view",
+    );
+
   const canViewInventorySuggestions =
     isOwner || hasPermission(
       permissionCodes,
@@ -693,6 +700,11 @@ export default async function LeadDetailPage({
         access={detailAccess}
         canEditLead={canEditLead}
         successMessage={successMessage}
+        dealListHref={
+          canViewDeals
+            ? `/dashboard/deals?leadId=${encodeURIComponent(lead.id)}`
+            : null
+        }
         currentAssignment={
           leadDetailAssignment
         }
