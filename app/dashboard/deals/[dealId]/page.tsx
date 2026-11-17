@@ -14,6 +14,10 @@ import {
 } from "@/lib/bookings/payment-receipt-approval-service";
 
 import {
+  getBookingAgreementChecklist,
+} from "@/lib/bookings/agreement-document-checklist-service";
+
+import {
   requirePermissionAccess,
 } from "@/lib/auth/access-control";
 
@@ -178,6 +182,10 @@ function getSuccessMessage(
     return "Receipt rejected. The payment ledger and totals remain unchanged.";
   }
 
+  if (getSingleValue(searchParams.agreementChecklistUpdated) === "1") {
+    return "Agreement and document checklist updated successfully.";
+  }
+
   if (
     getSingleValue(
       searchParams.offerCreated,
@@ -317,6 +325,7 @@ export default async function DealDetailPage({
     statusHistoryResult,
     paymentSchedulesResult,
     paymentReceiptSubmissions,
+    agreementChecklistResult,
   ] = await Promise.all([
     getDealOffers(
       organizationId,
@@ -342,6 +351,17 @@ export default async function DealDetailPage({
       organizationId,
       dealResult.data.bookingId,
     ),
+
+    dealResult.data.status === "won"
+      ? getBookingAgreementChecklist(
+          cleanDealId,
+          dealResult.data.bookingId,
+        )
+      : Promise.resolve({
+          ok: true as const,
+          items: [],
+          audit: [],
+        }),
   ]);
 
   if (!offersResult.ok) {
@@ -365,6 +385,12 @@ export default async function DealDetailPage({
   if (!paymentSchedulesResult.ok) {
     throw new Error(
       paymentSchedulesResult.message,
+    );
+  }
+
+  if (!agreementChecklistResult.ok) {
+    throw new Error(
+      agreementChecklistResult.message,
     );
   }
 
@@ -398,6 +424,12 @@ export default async function DealDetailPage({
       }
       paymentReceiptSubmissions={
         paymentReceiptSubmissions
+      }
+      agreementChecklistItems={
+        agreementChecklistResult.items
+      }
+      agreementChecklistAudit={
+        agreementChecklistResult.audit
       }
       access={access}
       isOwner={Boolean(context.membership?.isOwner)}

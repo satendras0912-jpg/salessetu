@@ -3356,6 +3356,61 @@ export async function decideBookingPaymentReceiptAction(
   redirect(`/dashboard/deals/${parsed.values.dealId}?receiptDecision=${parsed.values.decision}`, RedirectType.replace);
 }
 
+export async function updateBookingAgreementChecklistAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    allOf: [DEALOS_PERMISSIONS.viewDeals],
+    loginRedirectTo: "/login?next=/dashboard/deals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  const dealId = normalizeSingleLine(getFormString(formData, "dealId"));
+  const bookingId = normalizeSingleLine(getFormString(formData, "bookingId"));
+  const itemId = normalizeSingleLine(getFormString(formData, "itemId"));
+  const status = normalizeSingleLine(getFormString(formData, "status"));
+  const dueDate = normalizeSingleLine(getFormString(formData, "dueDate"));
+  const notes = normalizeMultiline(getFormString(formData, "notes"));
+  const fieldErrors: DealOSFieldErrors = {};
+
+  if (!UUID_PATTERN.test(dealId)) addFieldError(fieldErrors, "dealId", "A valid deal is required.");
+  if (!UUID_PATTERN.test(bookingId)) addFieldError(fieldErrors, "bookingId", "A valid booking is required.");
+  if (!UUID_PATTERN.test(itemId)) addFieldError(fieldErrors, "itemId", "A valid checklist item is required.");
+  if (![
+    "not_started", "requested", "submitted", "under_review", "approved", "rejected", "not_required",
+  ].includes(status)) addFieldError(fieldErrors, "status", "Choose a valid document status.");
+  if (notes.length > 2000) addFieldError(fieldErrors, "notes", "Notes cannot exceed 2000 characters.");
+  if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) addFieldError(fieldErrors, "dueDate", "Choose a valid due date.");
+
+  if (hasFieldErrors(fieldErrors)) {
+    return createErrorState("Please correct the document checklist fields.", fieldErrors);
+  }
+
+  if (["approved", "rejected"].includes(status) && !context.membership?.isOwner) {
+    return createErrorState("Only the workspace owner can approve or reject a checklist document.");
+  }
+
+  const supabase = await createDealOSClient();
+  const { error } = await supabase.rpc("update_booking_document_checklist_item", {
+    requested_deal_id: dealId,
+    requested_booking_id: bookingId,
+    requested_item_id: itemId,
+    requested_status: status,
+    requested_due_date: dueDate || null,
+    requested_notes: notes || null,
+  });
+
+  if (error) {
+    return createErrorState(error.message || "The document checklist could not be updated.");
+  }
+
+  revalidateDealOSPaths(dealId);
+  redirect(`/dashboard/deals/${dealId}?agreementChecklistUpdated=1`, RedirectType.replace);
+}
+
 export async function createDealOfferAction(
   previousState: DealOSActionState,
   formData: FormData,
