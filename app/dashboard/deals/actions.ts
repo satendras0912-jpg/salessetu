@@ -3420,6 +3420,7 @@ const BOOKING_DOCUMENT_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
 ]);
+const MAX_BOOKING_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
 function bookingDocumentExtension(mimeType: string): string {
   if (mimeType === "application/pdf") return "pdf";
@@ -3461,8 +3462,8 @@ export async function uploadBookingDocumentAction(
   if (!BOOKING_DOCUMENT_MIME_TYPES.has(file.type)) {
     return createErrorState("Only PDF, JPG and PNG files are allowed.");
   }
-  if (file.size > 10 * 1024 * 1024) {
-    return createErrorState("Documents must be 10 MB or smaller.");
+  if (file.size > MAX_BOOKING_DOCUMENT_BYTES) {
+    return createErrorState("Documents must be 4 MB or smaller.");
   }
   if (!originalFilename || originalFilename.length > 180) {
     return createErrorState("The document filename must be between 1 and 180 characters.");

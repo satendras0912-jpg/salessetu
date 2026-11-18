@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import {
   updateBookingAgreementChecklistAction,
@@ -22,6 +22,7 @@ const AGENT_STATUSES: BookingDocumentStatus[] = [
   "under_review",
   "not_required",
 ];
+const MAX_BOOKING_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
 function label(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -57,6 +58,7 @@ function ChecklistRow({
 }) {
   const [state, action, pending] = useActionState(updateBookingAgreementChecklistAction, INITIAL_DEALOS_ACTION_STATE);
   const [uploadState, uploadAction, uploading] = useActionState(uploadBookingDocumentAction, INITIAL_DEALOS_ACTION_STATE);
+  const [selectedFileError, setSelectedFileError] = useState("");
   const isOwnerDecision = ["approved", "rejected"].includes(item.status);
   const agentStatusLocked = !isOwner && isOwnerDecision;
   const statuses = isOwner
@@ -64,6 +66,16 @@ function ChecklistRow({
     : agentStatusLocked
       ? [item.status]
       : AGENT_STATUSES;
+
+  function validateSelectedFile(file: File | undefined): boolean {
+    if (!file || file.size <= MAX_BOOKING_DOCUMENT_BYTES) {
+      setSelectedFileError("");
+      return true;
+    }
+
+    setSelectedFileError("This file is larger than 4 MB. Please choose a smaller PDF, JPG or PNG.");
+    return false;
+  }
 
   return (
     <article className="rounded-2xl border border-slate-800 bg-slate-950/50 p-5">
@@ -105,7 +117,7 @@ function ChecklistRow({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h4 className="text-sm font-semibold text-white">Private document vault</h4>
-            <p className="mt-1 text-xs text-slate-400">PDF, JPG or PNG · maximum 10 MB · a new upload replaces the previous review file.</p>
+            <p className="mt-1 text-xs text-slate-400">PDF, JPG or PNG · maximum 4 MB · a new upload replaces the previous review file.</p>
           </div>
           {item.document ? (
             <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(item.document.reviewStatus)}`}>
@@ -126,16 +138,21 @@ function ChecklistRow({
           </p>
         ) : null}
 
-        <form action={uploadAction} encType="multipart/form-data" className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <form action={uploadAction} encType="multipart/form-data" onSubmit={(event) => {
+          const input = event.currentTarget.elements.namedItem("documentFile");
+          const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
+          if (!validateSelectedFile(file)) event.preventDefault();
+        }} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
           <input type="hidden" name="dealId" value={dealId} />
           <input type="hidden" name="bookingId" value={bookingId} />
           <input type="hidden" name="itemId" value={item.id} />
           <div className="min-w-0 flex-1">
             <label htmlFor={`document-file-${item.id}`} className="mb-2 block text-sm text-slate-300">Upload review file</label>
-            <input id={`document-file-${item.id}`} name="documentFile" type="file" accept="application/pdf,image/jpeg,image/png" required className="block w-full text-sm text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-cyan-200 hover:file:bg-slate-700" />
+            <input id={`document-file-${item.id}`} name="documentFile" type="file" accept="application/pdf,image/jpeg,image/png" required onChange={(event) => validateSelectedFile(event.currentTarget.files?.[0])} className="block w-full text-sm text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-cyan-200 hover:file:bg-slate-700" />
           </div>
           <button type="submit" disabled={uploading} className="rounded-xl border border-cyan-500/60 px-4 py-3 text-sm font-semibold text-cyan-200 disabled:opacity-50">{uploading ? "Uploading..." : "Upload & submit"}</button>
         </form>
+        {selectedFileError ? <p aria-live="polite" className="mt-3 text-sm text-red-300">{selectedFileError}</p> : null}
         {uploadState.status !== "idle" && uploadState.message ? <p aria-live="polite" className="mt-3 text-sm text-red-300">{uploadState.message}</p> : null}
       </section>
     </article>
