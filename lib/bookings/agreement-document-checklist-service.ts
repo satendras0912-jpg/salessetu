@@ -28,6 +28,17 @@ export type BookingDocumentChecklistItem = {
   notes: string | null;
   updatedAt: string;
   reviewedAt: string | null;
+  document: BookingDocumentFile | null;
+};
+
+export type BookingDocumentFile = {
+  id: string;
+  originalFilename: string;
+  mimeType: string;
+  byteSize: number;
+  reviewStatus: "pending" | "approved" | "rejected";
+  uploadedAt: string;
+  downloadUrl: string | null;
 };
 
 export type BookingDocumentChecklistAudit = {
@@ -55,6 +66,17 @@ type ChecklistRow = {
   reviewed_at: string | null;
 };
 
+type DocumentFileRow = {
+  id: string;
+  checklist_item_id: string;
+  storage_path: string;
+  original_filename: string;
+  mime_type: string;
+  byte_size: number;
+  review_status: "pending" | "approved" | "rejected";
+  uploaded_at: string;
+};
+
 type AuditRow = {
   id: string;
   checklist_item_id: string;
@@ -65,7 +87,10 @@ type AuditRow = {
   performed_at: string;
 };
 
-function toItem(row: ChecklistRow): BookingDocumentChecklistItem {
+function toItem(
+  row: ChecklistRow,
+  document: BookingDocumentFile | null,
+): BookingDocumentChecklistItem {
   return {
     id: row.id,
     bookingId: row.booking_id,
@@ -79,6 +104,7 @@ function toItem(row: ChecklistRow): BookingDocumentChecklistItem {
     notes: row.notes,
     updatedAt: row.updated_at,
     reviewedAt: row.reviewed_at,
+    document,
   };
 }
 
@@ -146,9 +172,49 @@ export async function getBookingAgreementChecklist(
     };
   }
 
+  const checklistRows = (itemsResult.data ?? []) as ChecklistRow[];
+  const itemIds = checklistRows.map((item) => item.id);
+  const filesResult = itemIds.length
+    ? await supabase
+      .from("booking_document_files")
+      .select("id, checklist_item_id, storage_path, original_filename, mime_type, byte_size, review_status, uploaded_at")
+      .in("checklist_item_id", itemIds)
+      .eq("is_current", true)
+    : { data: [] as DocumentFileRow[], error: null };
+
+  if (filesResult.error) {
+    return {
+      ok: false,
+      message: filesResult.error.message || "Booking documents could not be loaded.",
+    };
+  }
+
+  const fileRows = (filesResult.data ?? []) as DocumentFileRow[];
+  const fileEntries = await Promise.all(
+    fileRows.map(async (file) => {
+      const { data } = await supabase.storage
+        .from("booking-documents")
+        .createSignedUrl(file.storage_path, 600);
+
+      return [
+        file.checklist_item_id,
+        {
+          id: file.id,
+          originalFilename: file.original_filename,
+          mimeType: file.mime_type,
+          byteSize: file.byte_size,
+          reviewStatus: file.review_status,
+          uploadedAt: file.uploaded_at,
+          downloadUrl: data?.signedUrl ?? null,
+        } satisfies BookingDocumentFile,
+      ] as const;
+    }),
+  );
+  const filesByItemId = new Map(fileEntries);
+
   return {
     ok: true,
-    items: ((itemsResult.data ?? []) as ChecklistRow[]).map(toItem),
+    items: checklistRows.map((item) => toItem(item, filesByItemId.get(item.id) ?? null)),
     audit: ((auditResult.data ?? []) as AuditRow[]).map(toAudit),
   };
 }

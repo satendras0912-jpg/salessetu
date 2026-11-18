@@ -186,6 +186,10 @@ function getSuccessMessage(
     return "Agreement and document checklist updated successfully.";
   }
 
+  if (getSingleValue(searchParams.agreementDocumentUploaded) === "1") {
+    return "Private booking document uploaded and submitted for owner review.";
+  }
+
   if (
     getSingleValue(
       searchParams.offerCreated,
