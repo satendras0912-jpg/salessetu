@@ -2,7 +2,10 @@
 
 import { useActionState } from "react";
 
-import { updateBookingAgreementChecklistAction } from "@/app/dashboard/deals/actions";
+import {
+  updateBookingAgreementChecklistAction,
+  uploadBookingDocumentAction,
+} from "@/app/dashboard/deals/actions";
 import { INITIAL_DEALOS_ACTION_STATE } from "@/lib/dealos/deal-contract";
 import type {
   BookingDocumentChecklistAudit,
@@ -36,6 +39,11 @@ function date(value: string | null): string {
   return new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "Asia/Kolkata" }).format(new Date(`${value}T00:00:00`));
 }
 
+function fileSize(value: number): string {
+  if (value < 1024 * 1024) return `${Math.max(1, Math.round(value / 1024))} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function ChecklistRow({
   dealId,
   bookingId,
@@ -48,6 +56,7 @@ function ChecklistRow({
   isOwner: boolean;
 }) {
   const [state, action, pending] = useActionState(updateBookingAgreementChecklistAction, INITIAL_DEALOS_ACTION_STATE);
+  const [uploadState, uploadAction, uploading] = useActionState(uploadBookingDocumentAction, INITIAL_DEALOS_ACTION_STATE);
   const statuses = isOwner
     ? ["not_started", "requested", "submitted", "under_review", "approved", "rejected", "not_required"]
     : AGENT_STATUSES;
@@ -87,6 +96,44 @@ function ChecklistRow({
         </div>
       </form>
       {state.status !== "idle" && state.message ? <p aria-live="polite" className="mt-3 text-sm text-red-300">{state.message}</p> : null}
+
+      <section className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-white">Private document vault</h4>
+            <p className="mt-1 text-xs text-slate-400">PDF, JPG or PNG · maximum 10 MB · a new upload replaces the previous review file.</p>
+          </div>
+          {item.document ? (
+            <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(item.document.reviewStatus)}`}>
+              File review: {label(item.document.reviewStatus)}
+            </span>
+          ) : (
+            <span className="inline-flex w-fit rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-300">No file uploaded</span>
+          )}
+        </div>
+
+        {item.document ? (
+          <p className="mt-3 text-sm text-slate-300">
+            Current file: {item.document.downloadUrl ? (
+              <a className="font-medium text-cyan-300 underline underline-offset-4" href={item.document.downloadUrl} target="_blank" rel="noreferrer">
+                {item.document.originalFilename}
+              </a>
+            ) : item.document.originalFilename} <span className="text-slate-500">({fileSize(item.document.byteSize)})</span>
+          </p>
+        ) : null}
+
+        <form action={uploadAction} encType="multipart/form-data" className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <input type="hidden" name="dealId" value={dealId} />
+          <input type="hidden" name="bookingId" value={bookingId} />
+          <input type="hidden" name="itemId" value={item.id} />
+          <div className="min-w-0 flex-1">
+            <label htmlFor={`document-file-${item.id}`} className="mb-2 block text-sm text-slate-300">Upload review file</label>
+            <input id={`document-file-${item.id}`} name="documentFile" type="file" accept="application/pdf,image/jpeg,image/png" required className="block w-full text-sm text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-cyan-200 hover:file:bg-slate-700" />
+          </div>
+          <button type="submit" disabled={uploading} className="rounded-xl border border-cyan-500/60 px-4 py-3 text-sm font-semibold text-cyan-200 disabled:opacity-50">{uploading ? "Uploading..." : "Upload & submit"}</button>
+        </form>
+        {uploadState.status !== "idle" && uploadState.message ? <p aria-live="polite" className="mt-3 text-sm text-red-300">{uploadState.message}</p> : null}
+      </section>
     </article>
   );
 }

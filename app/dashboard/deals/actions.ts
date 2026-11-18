@@ -11,6 +11,10 @@ import {
 } from "@/lib/auth/access-control";
 
 import {
+  createAdminClient,
+} from "@/lib/supabase/admin";
+
+import {
   cancelCommercialApproval,
   cancelDeal,
   changeDealStatus,
@@ -3409,6 +3413,106 @@ export async function updateBookingAgreementChecklistAction(
 
   revalidateDealOSPaths(dealId);
   redirect(`/dashboard/deals/${dealId}?agreementChecklistUpdated=1`, RedirectType.replace);
+}
+
+const BOOKING_DOCUMENT_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+]);
+
+function bookingDocumentExtension(mimeType: string): string {
+  if (mimeType === "application/pdf") return "pdf";
+  if (mimeType === "image/jpeg") return "jpg";
+  return "png";
+}
+
+export async function uploadBookingDocumentAction(
+  previousState: DealOSActionState,
+  formData: FormData,
+): Promise<DealOSActionState> {
+  void previousState;
+
+  const { context } = await requirePermissionAccess({
+    allOf: [DEALOS_PERMISSIONS.viewDeals],
+    loginRedirectTo: "/login?next=/dashboard/deals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  const dealId = normalizeSingleLine(getFormString(formData, "dealId"));
+  const bookingId = normalizeSingleLine(getFormString(formData, "bookingId"));
+  const itemId = normalizeSingleLine(getFormString(formData, "itemId"));
+  const selectedFile = formData.get("documentFile");
+  const fieldErrors: DealOSFieldErrors = {};
+
+  if (!UUID_PATTERN.test(dealId)) addFieldError(fieldErrors, "dealId", "A valid deal is required.");
+  if (!UUID_PATTERN.test(bookingId)) addFieldError(fieldErrors, "bookingId", "A valid booking is required.");
+  if (!UUID_PATTERN.test(itemId)) addFieldError(fieldErrors, "itemId", "A valid checklist item is required.");
+  if (!(selectedFile instanceof File) || selectedFile.size === 0) {
+    addFieldError(fieldErrors, "documentFile", "Choose a document to upload.");
+  }
+
+  if (hasFieldErrors(fieldErrors)) {
+    return createErrorState("Please correct the document upload fields.", fieldErrors);
+  }
+
+  const file = selectedFile as File;
+  const originalFilename = normalizeSingleLine(file.name);
+  if (!BOOKING_DOCUMENT_MIME_TYPES.has(file.type)) {
+    return createErrorState("Only PDF, JPG and PNG files are allowed.");
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return createErrorState("Documents must be 10 MB or smaller.");
+  }
+  if (!originalFilename || originalFilename.length > 180) {
+    return createErrorState("The document filename must be between 1 and 180 characters.");
+  }
+
+  const organizationId = context.organization?.id;
+  if (!organizationId) {
+    return createErrorState("An active organization is required to upload booking documents.");
+  }
+
+  const storagePath = [
+    organizationId,
+    bookingId,
+    itemId,
+    `${crypto.randomUUID()}.${bookingDocumentExtension(file.type)}`,
+  ].join("/");
+
+  const admin = createAdminClient();
+  const { error: uploadError } = await admin.storage
+    .from("booking-documents")
+    .upload(storagePath, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    return createErrorState(uploadError.message || "The document could not be uploaded.");
+  }
+
+  const supabase = await createDealOSClient();
+  const { error: registerError } = await supabase.rpc(
+    "register_booking_document_upload",
+    {
+      requested_deal_id: dealId,
+      requested_booking_id: bookingId,
+      requested_item_id: itemId,
+      requested_storage_path: storagePath,
+      requested_original_filename: originalFilename,
+      requested_mime_type: file.type,
+      requested_byte_size: file.size,
+    },
+  );
+
+  if (registerError) {
+    await admin.storage.from("booking-documents").remove([storagePath]);
+    return createErrorState(registerError.message || "The uploaded document could not be registered.");
+  }
+
+  revalidateDealOSPaths(dealId);
+  redirect(`/dashboard/deals/${dealId}?agreementDocumentUploaded=1`, RedirectType.replace);
 }
 
 export async function createDealOfferAction(
