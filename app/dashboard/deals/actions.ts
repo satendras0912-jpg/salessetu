@@ -3480,31 +3480,46 @@ export async function uploadBookingDocumentAction(
     `${crypto.randomUUID()}.${bookingDocumentExtension(file.type)}`,
   ].join("/");
 
-  const admin = createAdminClient();
-  const { error: uploadError } = await admin.storage
-    .from("booking-documents")
-    .upload(storagePath, file, {
-      contentType: file.type,
-      upsert: false,
-    });
+  let admin: ReturnType<typeof createAdminClient>;
+  let uploadError: { message?: string } | null = null;
+
+  try {
+    admin = createAdminClient();
+    const uploadResult = await admin.storage
+      .from("booking-documents")
+      .upload(storagePath, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+    uploadError = uploadResult.error;
+  } catch {
+    return createErrorState("Private document upload is not configured or is temporarily unavailable. Please contact the workspace owner.");
+  }
 
   if (uploadError) {
     return createErrorState(uploadError.message || "The document could not be uploaded.");
   }
 
   const supabase = await createDealOSClient();
-  const { error: registerError } = await supabase.rpc(
-    "register_booking_document_upload",
-    {
-      requested_deal_id: dealId,
-      requested_booking_id: bookingId,
-      requested_item_id: itemId,
-      requested_storage_path: storagePath,
-      requested_original_filename: originalFilename,
-      requested_mime_type: file.type,
-      requested_byte_size: file.size,
-    },
-  );
+  let registerError: { message?: string } | null = null;
+  try {
+    const registerResult = await supabase.rpc(
+      "register_booking_document_upload",
+      {
+        requested_deal_id: dealId,
+        requested_booking_id: bookingId,
+        requested_item_id: itemId,
+        requested_storage_path: storagePath,
+        requested_original_filename: originalFilename,
+        requested_mime_type: file.type,
+        requested_byte_size: file.size,
+      },
+    );
+    registerError = registerResult.error;
+  } catch {
+    await admin.storage.from("booking-documents").remove([storagePath]);
+    return createErrorState("The document could not be registered. Please try again.");
+  }
 
   if (registerError) {
     await admin.storage.from("booking-documents").remove([storagePath]);
