@@ -57,9 +57,13 @@ function ChecklistRow({
 }) {
   const [state, action, pending] = useActionState(updateBookingAgreementChecklistAction, INITIAL_DEALOS_ACTION_STATE);
   const [uploadState, uploadAction, uploading] = useActionState(uploadBookingDocumentAction, INITIAL_DEALOS_ACTION_STATE);
+  const isOwnerDecision = ["approved", "rejected"].includes(item.status);
+  const agentStatusLocked = !isOwner && isOwnerDecision;
   const statuses = isOwner
     ? ["not_started", "requested", "submitted", "under_review", "approved", "rejected", "not_required"]
-    : AGENT_STATUSES;
+    : agentStatusLocked
+      ? [item.status]
+      : AGENT_STATUSES;
 
   return (
     <article className="rounded-2xl border border-slate-800 bg-slate-950/50 p-5">
@@ -81,7 +85,7 @@ function ChecklistRow({
         <input type="hidden" name="itemId" value={item.id} />
         <div>
           <label htmlFor={`document-status-${item.id}`} className="mb-2 block text-sm text-slate-300">Document status</label>
-          <select id={`document-status-${item.id}`} name="status" defaultValue={item.status} className={INPUT}>
+          <select id={`document-status-${item.id}`} name="status" defaultValue={item.status} disabled={agentStatusLocked} className={INPUT}>
             {statuses.map((status) => <option key={status} value={status}>{label(status)}</option>)}
           </select>
         </div>
@@ -89,7 +93,7 @@ function ChecklistRow({
           <label htmlFor={`document-due-${item.id}`} className="mb-2 block text-sm text-slate-300">Due date</label>
           <input id={`document-due-${item.id}`} name="dueDate" type="date" defaultValue={item.dueDate ?? ""} className={INPUT} />
         </div>
-        <button type="submit" disabled={pending} className="rounded-xl border border-cyan-500/60 px-4 py-3 text-sm font-semibold text-cyan-200 disabled:opacity-50">{pending ? "Saving..." : "Save"}</button>
+        <button type="submit" disabled={pending || agentStatusLocked} className="rounded-xl border border-cyan-500/60 px-4 py-3 text-sm font-semibold text-cyan-200 disabled:opacity-50">{pending ? "Saving..." : "Save"}</button>
         <div className="md:col-span-3">
           <label htmlFor={`document-notes-${item.id}`} className="mb-2 block text-sm text-slate-300">Notes <span className="text-slate-500">(audit reason / handover context)</span></label>
           <textarea id={`document-notes-${item.id}`} name="notes" defaultValue={item.notes ?? ""} maxLength={2000} className={`${INPUT} min-h-20`} placeholder="Document details, missing information or approval reason" />
