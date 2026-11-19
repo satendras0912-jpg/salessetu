@@ -3420,7 +3420,27 @@ const BOOKING_DOCUMENT_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
 ]);
-const MAX_BOOKING_DOCUMENT_BYTES = 4 * 1024 * 1024;
+const MAX_BOOKING_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+type BookingDocumentUploadRequest = {
+  dealId: string;
+  bookingId: string;
+  itemId: string;
+  originalFilename: string;
+  mimeType: string;
+  byteSize: number;
+};
+
+type BookingDocumentUploadPermit =
+  | {
+      ok: true;
+      storagePath: string;
+      token: string;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
 
 function bookingDocumentExtension(mimeType: string): string {
   if (mimeType === "application/pdf") return "pdf";
@@ -3428,99 +3448,119 @@ function bookingDocumentExtension(mimeType: string): string {
   return "png";
 }
 
-export async function uploadBookingDocumentAction(
-  previousState: DealOSActionState,
-  formData: FormData,
-): Promise<DealOSActionState> {
-  void previousState;
-
+export async function createBookingDocumentUploadPermitAction(
+  request: BookingDocumentUploadRequest,
+): Promise<BookingDocumentUploadPermit> {
   const { context } = await requirePermissionAccess({
     allOf: [DEALOS_PERMISSIONS.viewDeals],
     loginRedirectTo: "/login?next=/dashboard/deals",
     unauthorizedRedirectTo: "/unauthorized",
   });
 
-  const dealId = normalizeSingleLine(getFormString(formData, "dealId"));
-  const bookingId = normalizeSingleLine(getFormString(formData, "bookingId"));
-  const itemId = normalizeSingleLine(getFormString(formData, "itemId"));
-  const selectedFile = formData.get("documentFile");
-  const fieldErrors: DealOSFieldErrors = {};
+  const dealId = normalizeSingleLine(request.dealId);
+  const bookingId = normalizeSingleLine(request.bookingId);
+  const itemId = normalizeSingleLine(request.itemId);
+  const originalFilename = normalizeSingleLine(request.originalFilename);
+  const mimeType = normalizeSingleLine(request.mimeType);
+  const byteSize = Number.isInteger(request.byteSize) ? request.byteSize : 0;
 
-  if (!UUID_PATTERN.test(dealId)) addFieldError(fieldErrors, "dealId", "A valid deal is required.");
-  if (!UUID_PATTERN.test(bookingId)) addFieldError(fieldErrors, "bookingId", "A valid booking is required.");
-  if (!UUID_PATTERN.test(itemId)) addFieldError(fieldErrors, "itemId", "A valid checklist item is required.");
-  if (!(selectedFile instanceof File) || selectedFile.size === 0) {
-    addFieldError(fieldErrors, "documentFile", "Choose a document to upload.");
+  if (!UUID_PATTERN.test(dealId) || !UUID_PATTERN.test(bookingId) || !UUID_PATTERN.test(itemId)) {
+    return { ok: false, message: "A valid booking document target is required." };
   }
-
-  if (hasFieldErrors(fieldErrors)) {
-    return createErrorState("Please correct the document upload fields.", fieldErrors);
+  if (!BOOKING_DOCUMENT_MIME_TYPES.has(mimeType)) {
+    return { ok: false, message: "Only PDF, JPG and PNG files are allowed." };
   }
-
-  const file = selectedFile as File;
-  const originalFilename = normalizeSingleLine(file.name);
-  if (!BOOKING_DOCUMENT_MIME_TYPES.has(file.type)) {
-    return createErrorState("Only PDF, JPG and PNG files are allowed.");
-  }
-  if (file.size > MAX_BOOKING_DOCUMENT_BYTES) {
-    return createErrorState("Documents must be 4 MB or smaller.");
+  if (byteSize <= 0 || byteSize > MAX_BOOKING_DOCUMENT_BYTES) {
+    return { ok: false, message: "Documents must be 10 MB or smaller." };
   }
   if (!originalFilename || originalFilename.length > 180) {
-    return createErrorState("The document filename must be between 1 and 180 characters.");
+    return { ok: false, message: "The document filename must be between 1 and 180 characters." };
   }
 
   const organizationId = context.organization?.id;
   if (!organizationId) {
-    return createErrorState("An active organization is required to upload booking documents.");
+    return { ok: false, message: "An active organization is required to upload booking documents." };
   }
 
   const storagePath = [
     organizationId,
     bookingId,
     itemId,
-    `${crypto.randomUUID()}.${bookingDocumentExtension(file.type)}`,
+    `${crypto.randomUUID()}.${bookingDocumentExtension(mimeType)}`,
   ].join("/");
 
-  let admin: ReturnType<typeof createAdminClient>;
-  let uploadError: { message?: string } | null = null;
-
   try {
-    admin = createAdminClient();
-    const uploadResult = await admin.storage
+    const { data, error } = await createAdminClient().storage
       .from("booking-documents")
-      .upload(storagePath, file, {
-        contentType: file.type,
-        upsert: false,
-      });
-    uploadError = uploadResult.error;
+      .createSignedUploadUrl(storagePath);
+    if (error || !data?.token) {
+      return { ok: false, message: error?.message || "A private upload link could not be created." };
+    }
+    return { ok: true, storagePath, token: data.token };
   } catch {
-    return createErrorState("Private document upload is not configured or is temporarily unavailable. Please contact the workspace owner.");
+    return { ok: false, message: "Private document upload is not configured or is temporarily unavailable. Please contact the workspace owner." };
+  }
+}
+
+export async function finalizeBookingDocumentUploadAction(
+  request: BookingDocumentUploadRequest & { storagePath: string },
+): Promise<DealOSActionState> {
+  const { context } = await requirePermissionAccess({
+    allOf: [DEALOS_PERMISSIONS.viewDeals],
+    loginRedirectTo: "/login?next=/dashboard/deals",
+    unauthorizedRedirectTo: "/unauthorized",
+  });
+
+  const dealId = normalizeSingleLine(request.dealId);
+  const bookingId = normalizeSingleLine(request.bookingId);
+  const itemId = normalizeSingleLine(request.itemId);
+  const originalFilename = normalizeSingleLine(request.originalFilename);
+  const mimeType = normalizeSingleLine(request.mimeType);
+  const byteSize = Number.isInteger(request.byteSize) ? request.byteSize : 0;
+  const storagePath = normalizeSingleLine(request.storagePath);
+  const organizationId = context.organization?.id;
+
+  if (!organizationId || !UUID_PATTERN.test(dealId) || !UUID_PATTERN.test(bookingId) || !UUID_PATTERN.test(itemId)) {
+    return createErrorState("A valid booking document target is required.");
+  }
+  if (!BOOKING_DOCUMENT_MIME_TYPES.has(mimeType) || byteSize <= 0 || byteSize > MAX_BOOKING_DOCUMENT_BYTES || !originalFilename || originalFilename.length > 180) {
+    return createErrorState("The document details are invalid.");
   }
 
-  if (uploadError) {
-    return createErrorState(uploadError.message || "The document could not be uploaded.");
+  const expectedPrefix = `${organizationId}/${bookingId}/${itemId}/`;
+  const storedFilename = storagePath.slice(expectedPrefix.length);
+  if (!storagePath.startsWith(expectedPrefix) || !/^[0-9a-f-]{36}\.(pdf|jpg|png)$/i.test(storedFilename)) {
+    return createErrorState("The upload destination is invalid.");
+  }
+
+  let admin: ReturnType<typeof createAdminClient>;
+  try {
+    admin = createAdminClient();
+    const { data: objects, error } = await admin.storage
+      .from("booking-documents")
+      .list(expectedPrefix.slice(0, -1), { limit: 10, search: storedFilename });
+    const uploadedObject = objects?.find((object) => object.name === storedFilename);
+    if (error || !uploadedObject || uploadedObject.metadata?.size !== byteSize || uploadedObject.metadata?.mimetype !== mimeType) {
+      if (uploadedObject) await admin.storage.from("booking-documents").remove([storagePath]);
+      return createErrorState(error?.message || "The uploaded document could not be verified.");
+    }
+  } catch {
+    return createErrorState("The uploaded document could not be verified. Please try again.");
   }
 
   const supabase = await createDealOSClient();
-  let registerError: { message?: string } | null = null;
-  try {
-    const registerResult = await supabase.rpc(
-      "register_booking_document_upload",
-      {
-        requested_deal_id: dealId,
-        requested_booking_id: bookingId,
-        requested_item_id: itemId,
-        requested_storage_path: storagePath,
-        requested_original_filename: originalFilename,
-        requested_mime_type: file.type,
-        requested_byte_size: file.size,
-      },
-    );
-    registerError = registerResult.error;
-  } catch {
-    await admin.storage.from("booking-documents").remove([storagePath]);
-    return createErrorState("The document could not be registered. Please try again.");
-  }
+  const { error: registerError } = await supabase.rpc(
+    "register_booking_document_upload",
+    {
+      requested_deal_id: dealId,
+      requested_booking_id: bookingId,
+      requested_item_id: itemId,
+      requested_storage_path: storagePath,
+      requested_original_filename: originalFilename,
+      requested_mime_type: mimeType,
+      requested_byte_size: byteSize,
+    },
+  );
 
   if (registerError) {
     await admin.storage.from("booking-documents").remove([storagePath]);
@@ -3528,7 +3568,12 @@ export async function uploadBookingDocumentAction(
   }
 
   revalidateDealOSPaths(dealId);
-  redirect(`/dashboard/deals/${dealId}?agreementDocumentUploaded=1`, RedirectType.replace);
+  return {
+    status: "success",
+    message: "Private booking document uploaded and submitted for owner review.",
+    fieldErrors: {},
+    dealId,
+  };
 }
 
 export async function createDealOfferAction(
