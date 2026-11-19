@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_WEBHOOK_URL =
   "https://automation.salessetu.in/webhook/sales-lead-attribution";
+const DEFAULT_CAPTURE_ROUTE_KEY = "salessetu-web-demo";
 
 type LeadCapturePayload = {
   name?: unknown;
@@ -54,6 +55,8 @@ export async function POST(request: NextRequest) {
 
   const webhookUrl =
     process.env.LEAD_CAPTURE_WEBHOOK_URL?.trim() || DEFAULT_WEBHOOK_URL;
+  const captureRouteKey =
+    process.env.LEAD_CAPTURE_ROUTE_KEY?.trim() || DEFAULT_CAPTURE_ROUTE_KEY;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -70,6 +73,7 @@ export async function POST(request: NextRequest) {
         source: readOptionalText(body.source, "Website"),
         medium: readOptionalText(body.medium, "Organic"),
         campaign: readOptionalText(body.campaign, "Direct"),
+        capture_route_key: captureRouteKey,
         consent: true,
         consent_source: "salessetu_marketing_demo_form",
         consent_captured_at: new Date().toISOString(),
