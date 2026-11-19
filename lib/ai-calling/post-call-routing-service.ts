@@ -24,10 +24,6 @@ type ExistingTaskRow = {
   id: string;
 };
 
-type CreatedTaskRow = {
-  id: string;
-};
-
 export type PostCallRoutingResult = {
   processed: boolean;
   taskId: string | null;

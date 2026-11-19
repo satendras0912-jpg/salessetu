@@ -37,7 +37,7 @@ export default function DemoForm() {
 
     try {
       const response = await fetch(
-        "https://automation.salessetu.in/webhook/sales-lead",
+        "/api/lead-capture",
         {
           method: "POST",
           headers: {
@@ -51,6 +51,7 @@ export default function DemoForm() {
             source: utm.source,
             medium: utm.medium,
             campaign: utm.campaign,
+            consent: formData.get("consent") === "on",
           }),
         }
       );
@@ -105,6 +106,26 @@ export default function DemoForm() {
         required
         className="w-full p-4 rounded-xl bg-white text-black"
       />
+
+      <label className="flex items-start gap-3 text-sm leading-6 text-gray-300">
+        <input
+          type="checkbox"
+          name="consent"
+          required
+          className="mt-1 h-4 w-4 rounded border-gray-600 accent-cyan-500"
+        />
+        <span>
+          I agree that SalesSetu may contact me about this demo and process
+          my details according to the {" "}
+          <a
+            href="/privacy-policy"
+            className="text-cyan-400 underline hover:text-cyan-300"
+          >
+            Privacy Policy
+          </a>
+          .
+        </span>
+      </label>
 
       <button
         type="submit"
