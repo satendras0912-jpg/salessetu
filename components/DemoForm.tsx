@@ -33,25 +33,15 @@ export default function DemoForm() {
   }, []);
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  const formElement = e.currentTarget;
-  const formData = new FormData(formElement);
+    const formElement = e.currentTarget;
+    const formData = new FormData(formElement);
     setLoading(true);
     setError("");
     setSuccess(false);
 
-    const form = e.currentTarget;
-
     try {
-      const legacyWebhookUrl =
-        "https://automation.salessetu.in/webhook/sales-lead";
-      const attributionWebhookUrl =
-        process.env.NEXT_PUBLIC_UTM_ATTRIBUTION_WEBHOOK_URL;
-      const captureRouteKey =
-        process.env.NEXT_PUBLIC_UTM_CAPTURE_ROUTE_KEY ||
-        "salessetu-web-demo";
-
       const payload = {
         name: formData.get("name"),
         phone: formData.get("phone"),
@@ -60,18 +50,10 @@ export default function DemoForm() {
         source: utm.source,
         medium: utm.medium,
         campaign: utm.campaign,
-        // Canonical payload keys for SalesSetu / n8n mappings. The legacy
-        // keys above remain so existing workflows keep working unchanged.
-        utm_source: utm.source,
-        utm_medium: utm.medium,
-        utm_campaign: utm.campaign,
-        utm_term: utm.term || null,
-        utm_content: utm.content || null,
-        landing_page_url: utm.landingPageUrl,
-        referrer_url: utm.referrerUrl || null,
+        consent: formData.get("consent") === "on",
       };
 
-      const legacyResponse = await fetch(legacyWebhookUrl, {
+      const response = await fetch("/api/lead-capture", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -79,36 +61,12 @@ export default function DemoForm() {
         body: JSON.stringify(payload),
       });
 
-      if (!legacyResponse.ok) {
-        throw new Error("Legacy lead webhook failed");
-      }
-
-      // A separate, environment-controlled shadow delivery keeps the live
-      // Airtable capture path intact until Supabase verification is complete.
-      if (attributionWebhookUrl) {
-        void fetch(attributionWebhookUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...payload,
-            capture_route_key: captureRouteKey,
-          }),
-        }).then((attributionResponse) => {
-          if (!attributionResponse.ok) {
-            throw new Error("UTM attribution webhook failed");
-          }
-        }).catch((attributionError) => {
-          console.error(
-            "UTM attribution shadow delivery failed:",
-            attributionError
-          );
-        });
+      if (!response.ok) {
+        throw new Error("Demo enquiry could not be delivered");
       }
 
       setSuccess(true);
-      form.reset();
+      formElement.reset();
     } catch (err) {
       console.error("Error:", err);
       setError("Something went wrong. Please try again.");
@@ -153,6 +111,23 @@ export default function DemoForm() {
         required
         className="w-full p-4 rounded-xl bg-white text-black"
       />
+
+      <label className="flex items-start gap-3 text-sm leading-6 text-gray-300">
+        <input
+          type="checkbox"
+          name="consent"
+          required
+          className="mt-1 h-4 w-4 rounded border-gray-600 accent-cyan-500"
+        />
+        <span>
+          I agree to be contacted by SalesSetu via call, WhatsApp, SMS or
+          AI-assisted communication about my demo enquiry. See the{" "}
+          <a className="text-cyan-400 underline" href="/privacy-policy">
+            Privacy Policy
+          </a>
+          .
+        </span>
+      </label>
 
       <button
         type="submit"
