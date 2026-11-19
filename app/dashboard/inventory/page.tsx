@@ -211,10 +211,6 @@ export default async function InventoryDashboardPage({
     ["reserved", "token_received"].includes(unit.unit_status),
   );
 
-  const soldUnits = units.filter((unit) =>
-    ["booked", "sold"].includes(unit.unit_status),
-  );
-
   const availableValue = availableUnits.reduce(
     (total, unit) =>
       total + (unit.current_price ?? unit.all_inclusive_price ?? 0),

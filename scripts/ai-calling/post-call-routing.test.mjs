@@ -34,14 +34,18 @@ const {
   getPostCallRoutingPlan,
 } = exports;
 
+function plainObject(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 test(
   "details-first qualification creates a safe internal clarification task",
   () => {
     assert.deepEqual(
-      getPostCallRoutingPlan({
+      plainObject(getPostCallRoutingPlan({
         qualificationStatus: "manual_review",
         recommendedAction: "send_details",
-      }),
+      })),
       {
         createTask: true,
         title: "Share requested details and confirm BHK preference",
@@ -57,11 +61,11 @@ test(
   "explicit site-visit interest creates a task, not an appointment",
   () => {
     assert.deepEqual(
-      getPostCallRoutingPlan({
+      plainObject(getPostCallRoutingPlan({
         qualificationStatus: "qualified_hot",
         recommendedAction:
           "assign_agent_and_schedule_site_visit",
-      }),
+      })),
       {
         createTask: true,
         title: "Confirm site visit and assign a representative",
@@ -77,11 +81,11 @@ test(
   "hot callback qualification creates a human callback task",
   () => {
     assert.deepEqual(
-      getPostCallRoutingPlan({
+      plainObject(getPostCallRoutingPlan({
         qualificationStatus: "qualified_hot",
         recommendedAction:
           "agent_callback_and_nurture",
-      }),
+      })),
       {
         createTask: true,
         title: "Call qualified lead and confirm next step",

@@ -40,7 +40,7 @@ function service({ denied = false, error = null } = {}) {
     calls.push([method, ...args]);
     return method === 'range' ? Promise.resolve({data:[],count:0,error}) : query;
   }});
-  const module = load('../../lib/follow-ups/worklist-service.ts', name => {
+  const loadedModule = load('../../lib/follow-ups/worklist-service.ts', name => {
     if (name === './worklist-contract') return contract;
     if (name.includes('access-control')) return { requirePermissionAccess: async options => {
       calls.push(['authorize', options]);
@@ -51,7 +51,7 @@ function service({ denied = false, error = null } = {}) {
     if (name === 'server-only') return {};
     throw new Error(`Unexpected import ${name}`);
   });
-  return { ...module, calls };
+  return { ...loadedModule, calls };
 }
 test('denied access never reaches database', async () => {
   const s = service({denied:true});
