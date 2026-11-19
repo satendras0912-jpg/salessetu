@@ -1,12 +1,15 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 
 import {
+  createBookingDocumentUploadPermitAction,
+  finalizeBookingDocumentUploadAction,
   updateBookingAgreementChecklistAction,
-  uploadBookingDocumentAction,
 } from "@/app/dashboard/deals/actions";
 import { INITIAL_DEALOS_ACTION_STATE } from "@/lib/dealos/deal-contract";
+import { createClient } from "@/lib/supabase/client";
 import type {
   BookingDocumentChecklistAudit,
   BookingDocumentChecklistItem,
@@ -22,7 +25,7 @@ const AGENT_STATUSES: BookingDocumentStatus[] = [
   "under_review",
   "not_required",
 ];
-const MAX_BOOKING_DOCUMENT_BYTES = 4 * 1024 * 1024;
+const MAX_BOOKING_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 function label(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -56,9 +59,11 @@ function ChecklistRow({
   item: BookingDocumentChecklistItem;
   isOwner: boolean;
 }) {
+  const router = useRouter();
   const [state, action, pending] = useActionState(updateBookingAgreementChecklistAction, INITIAL_DEALOS_ACTION_STATE);
-  const [uploadState, uploadAction, uploading] = useActionState(uploadBookingDocumentAction, INITIAL_DEALOS_ACTION_STATE);
   const [selectedFileError, setSelectedFileError] = useState("");
+  const [uploadMessage, setUploadMessage] = useState("");
+  const [uploading, setUploading] = useState(false);
   const isOwnerDecision = ["approved", "rejected"].includes(item.status);
   const agentStatusLocked = !isOwner && isOwnerDecision;
   const statuses = isOwner
@@ -73,8 +78,67 @@ function ChecklistRow({
       return true;
     }
 
-    setSelectedFileError("This file is larger than 4 MB. Please choose a smaller PDF, JPG or PNG.");
+    setSelectedFileError("This file is larger than 10 MB. Please choose a smaller PDF, JPG or PNG.");
     return false;
+  }
+
+  async function uploadDocument(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const input = form.elements.namedItem("documentFile");
+    const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
+
+    if (!file || !validateSelectedFile(file)) return;
+
+    setUploading(true);
+    setUploadMessage("");
+
+    try {
+      const permit = await createBookingDocumentUploadPermitAction({
+        dealId,
+        bookingId,
+        itemId: item.id,
+        originalFilename: file.name,
+        mimeType: file.type,
+        byteSize: file.size,
+      });
+      if (!permit.ok) {
+        setUploadMessage(permit.message);
+        return;
+      }
+
+      const { error: storageError } = await createClient().storage
+        .from("booking-documents")
+        .uploadToSignedUrl(permit.storagePath, permit.token, file, {
+          contentType: file.type,
+        });
+      if (storageError) {
+        setUploadMessage(storageError.message || "The document could not be uploaded.");
+        return;
+      }
+
+      const result = await finalizeBookingDocumentUploadAction({
+        dealId,
+        bookingId,
+        itemId: item.id,
+        originalFilename: file.name,
+        mimeType: file.type,
+        byteSize: file.size,
+        storagePath: permit.storagePath,
+      });
+      if (result.status !== "success") {
+        setUploadMessage(result.message || "The uploaded document could not be registered.");
+        return;
+      }
+
+      form.reset();
+      setUploadMessage(result.message);
+      router.refresh();
+    } catch {
+      setUploadMessage("The document upload could not be completed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -117,7 +181,7 @@ function ChecklistRow({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h4 className="text-sm font-semibold text-white">Private document vault</h4>
-            <p className="mt-1 text-xs text-slate-400">PDF, JPG or PNG · maximum 4 MB · a new upload replaces the previous review file.</p>
+            <p className="mt-1 text-xs text-slate-400">PDF, JPG or PNG · maximum 10 MB · a new upload replaces the previous review file.</p>
           </div>
           {item.document ? (
             <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(item.document.reviewStatus)}`}>
@@ -138,14 +202,7 @@ function ChecklistRow({
           </p>
         ) : null}
 
-        <form action={uploadAction} encType="multipart/form-data" onSubmit={(event) => {
-          const input = event.currentTarget.elements.namedItem("documentFile");
-          const file = input instanceof HTMLInputElement ? input.files?.[0] : undefined;
-          if (!validateSelectedFile(file)) event.preventDefault();
-        }} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-          <input type="hidden" name="dealId" value={dealId} />
-          <input type="hidden" name="bookingId" value={bookingId} />
-          <input type="hidden" name="itemId" value={item.id} />
+        <form onSubmit={uploadDocument} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="min-w-0 flex-1">
             <label htmlFor={`document-file-${item.id}`} className="mb-2 block text-sm text-slate-300">Upload review file</label>
             <input id={`document-file-${item.id}`} name="documentFile" type="file" accept="application/pdf,image/jpeg,image/png" required onChange={(event) => validateSelectedFile(event.currentTarget.files?.[0])} className="block w-full text-sm text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-cyan-200 hover:file:bg-slate-700" />
@@ -153,7 +210,7 @@ function ChecklistRow({
           <button type="submit" disabled={uploading} className="rounded-xl border border-cyan-500/60 px-4 py-3 text-sm font-semibold text-cyan-200 disabled:opacity-50">{uploading ? "Uploading..." : "Upload & submit"}</button>
         </form>
         {selectedFileError ? <p aria-live="polite" className="mt-3 text-sm text-red-300">{selectedFileError}</p> : null}
-        {uploadState.status !== "idle" && uploadState.message ? <p aria-live="polite" className="mt-3 text-sm text-red-300">{uploadState.message}</p> : null}
+        {uploadMessage ? <p aria-live="polite" className={`mt-3 text-sm ${uploadMessage.startsWith("Private booking document uploaded") ? "text-emerald-300" : "text-red-300"}`}>{uploadMessage}</p> : null}
       </section>
     </article>
   );
