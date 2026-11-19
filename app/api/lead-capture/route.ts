@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_WEBHOOK_URL =
-  "https://automation.salessetu.in/webhook/salessetu-lead";
+  "https://automation.salessetu.in/webhook/sales-lead-attribution";
 
 type LeadCapturePayload = {
   name?: unknown;
