@@ -73,6 +73,11 @@ export async function POST(request: NextRequest) {
         source: readOptionalText(body.source, "Website"),
         medium: readOptionalText(body.medium, "Organic"),
         campaign: readOptionalText(body.campaign, "Direct"),
+        // The published n8n intake forwards this field to Supabase's
+        // `ingest_lead_capture_intake` RPC, whose contract requires
+        // `route_key` (not the older internal `capture_route_key` name).
+        route_key: captureRouteKey,
+        // Keep this alias while downstream automations are migrated.
         capture_route_key: captureRouteKey,
         consent: true,
         consent_source: "salessetu_marketing_demo_form",
