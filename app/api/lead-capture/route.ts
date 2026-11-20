@@ -15,6 +15,13 @@ type LeadCapturePayload = {
   source?: unknown;
   medium?: unknown;
   campaign?: unknown;
+  utm_source?: unknown;
+  utm_medium?: unknown;
+  utm_campaign?: unknown;
+  utm_term?: unknown;
+  utm_content?: unknown;
+  landing_page_url?: unknown;
+  referrer_url?: unknown;
   consent?: unknown;
 };
 
@@ -45,6 +52,9 @@ export async function POST(request: NextRequest) {
   const phone = readRequiredText(body.phone);
   const project = readRequiredText(body.project);
   const location = readRequiredText(body.location);
+  const source = readOptionalText(body.source, "Website");
+  const medium = readOptionalText(body.medium, "Organic");
+  const campaign = readOptionalText(body.campaign, "Direct");
 
   if (!name || !phone || !project || !location || body.consent !== true) {
     return NextResponse.json(
@@ -70,14 +80,17 @@ export async function POST(request: NextRequest) {
         phone,
         project,
         location,
-        source: readOptionalText(body.source, "Website"),
-        medium: readOptionalText(body.medium, "Organic"),
-        campaign: readOptionalText(body.campaign, "Direct"),
-        // The published n8n intake forwards this field to Supabase's
-        // `ingest_lead_capture_intake` RPC, whose contract requires
-        // `route_key` (not the older internal `capture_route_key` name).
+        source,
+        medium,
+        campaign,
+        utm_source: readOptionalText(body.utm_source, source),
+        utm_medium: readOptionalText(body.utm_medium, medium),
+        utm_campaign: readOptionalText(body.utm_campaign, campaign),
+        utm_term: readRequiredText(body.utm_term),
+        utm_content: readRequiredText(body.utm_content),
+        landing_page_url: readRequiredText(body.landing_page_url),
+        referrer_url: readRequiredText(body.referrer_url),
         route_key: captureRouteKey,
-        // Keep this alias while downstream automations are migrated.
         capture_route_key: captureRouteKey,
         consent: true,
         consent_source: "salessetu_marketing_demo_form",

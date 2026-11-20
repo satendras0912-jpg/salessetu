@@ -50,6 +50,13 @@ export default function DemoForm() {
         source: utm.source,
         medium: utm.medium,
         campaign: utm.campaign,
+        utm_source: utm.source,
+        utm_medium: utm.medium,
+        utm_campaign: utm.campaign,
+        utm_term: utm.term || null,
+        utm_content: utm.content || null,
+        landing_page_url: utm.landingPageUrl,
+        referrer_url: utm.referrerUrl || null,
         consent: formData.get("consent") === "on",
       };
 
