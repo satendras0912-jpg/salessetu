@@ -187,6 +187,14 @@ const navigationItems: NavigationItem[] = [
     description: "Membership and role details",
     permission: "dashboard.context.read",
   },
+  {
+    href: "/dashboard/pilot-launch",
+    label: "Pilot Launch",
+    description: "Tenant setup checklist",
+    permission: "dashboard.view",
+    ownerOnly: true,
+    exact: true,
+  },
 ];
 
 function isNavigationItemActive(
