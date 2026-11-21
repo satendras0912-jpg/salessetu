@@ -40,3 +40,7 @@ jobs:
             LOCAL_SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
             node ./scripts/test-local-receipt.mjs
           node --test ./scripts/test-local-receipt.test.mjs
+      - name: Replay all migrations in isolated Supabase
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/isolated-local-supabase-contract-harness'
+        shell: bash
+        run: bash local-staging/scripts/replay-all-migrations-ci.sh
