@@ -17,6 +17,7 @@ trap cleanup EXIT
 
 rm -rf "$REPLAY_ROOT"
 mkdir -p "$REPLAY_SUPABASE"
+mkdir -p "$REPLAY_SUPABASE/migrations"
 cp "$GITHUB_WORKSPACE/local-staging/supabase/config.toml" "$REPLAY_SUPABASE/config.toml"
 
 # This config is copied to a disposable runner directory, so it cannot link to
@@ -28,7 +29,7 @@ for migration in "$GITHUB_WORKSPACE"/supabase/migrations/{001..036}_*.sql; do
   test -f "$migration"
   cp "$migration" "$REPLAY_SUPABASE/migrations/"
 done
-npx --yes "supabase@$SUPABASE_CLI_VERSION" start --workdir "$REPLAY_ROOT"
+npx --yes "supabase@$SUPABASE_CLI_VERSION" start --workdir "$REPLAY_ROOT" >/dev/null
 
 set -a
 eval "$(npx --yes "supabase@$SUPABASE_CLI_VERSION" status --workdir "$REPLAY_ROOT" --output env)"
