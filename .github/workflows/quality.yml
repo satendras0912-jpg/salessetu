@@ -25,3 +25,18 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
+      - name: Run isolated local Supabase receipt contract
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/isolated-local-supabase-contract-harness'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd local-staging
+          trap 'npx --yes supabase@3.2.0 stop --no-backup >/dev/null 2>&1 || true' EXIT
+          npx --yes supabase@3.2.0 start
+          set -a
+          eval "$(npx --yes supabase@3.2.0 status --output env)"
+          set +a
+          LOCAL_SUPABASE_URL="$API_URL" \
+            LOCAL_SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+            node ./scripts/test-local-receipt.mjs
+          node --test ./scripts/test-local-receipt.test.mjs
