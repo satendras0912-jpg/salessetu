@@ -94,10 +94,13 @@ test "$applied_count" = "103"
 # The replay must retain the repo's intended service-role-only capture RPCs.
 psql "$DB_URL" --set ON_ERROR_STOP=1 --command "
   do \$\$
+  declare
+    anon_execute boolean := has_function_privilege('anon', 'public.ingest_lead_capture_intake(jsonb)', 'EXECUTE');
+    authenticated_execute boolean := has_function_privilege('authenticated', 'public.ingest_lead_capture_intake(jsonb)', 'EXECUTE');
+    service_role_execute boolean := has_function_privilege('service_role', 'public.ingest_lead_capture_intake(jsonb)', 'EXECUTE');
   begin
-    if has_function_privilege('anon', 'public.ingest_lead_capture_intake(jsonb)', 'EXECUTE')
-      or has_function_privilege('authenticated', 'public.ingest_lead_capture_intake(jsonb)', 'EXECUTE')
-      or not has_function_privilege('service_role', 'public.ingest_lead_capture_intake(jsonb)', 'EXECUTE') then
+    raise notice 'ingest_lead_capture_intake execute privileges: anon=%, authenticated=%, service_role=%', anon_execute, authenticated_execute, service_role_execute;
+    if anon_execute or authenticated_execute or not service_role_execute then
       raise exception 'unexpected ingest_lead_capture_intake privileges after local replay';
     end if;
   end
