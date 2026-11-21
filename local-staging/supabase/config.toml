@@ -12,9 +12,6 @@ major_version = 17
 [studio]
 port = 55323
 
-[inbucket]
-port = 55324
-
 [db.seed]
 enabled = true
 sql_paths = ["./seed.sql"]
