@@ -1,0 +1,17 @@
+# Only for ./local-staging. This is not the production Supabase configuration.
+project_id = "salessetu-local-receipt-contract"
+
+[api]
+port = 55321
+
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 17
+
+[studio]
+port = 55323
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
