@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           cd local-staging
           trap 'npx --yes supabase@3.2.0 stop --no-backup >/dev/null 2>&1 || true' EXIT
-          npx --yes supabase@3.2.0 start
+          npx --yes supabase@3.2.0 start >/dev/null
           set -a
           eval "$(npx --yes supabase@3.2.0 status --output env)"
           set +a
