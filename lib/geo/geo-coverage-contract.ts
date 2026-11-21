@@ -17,6 +17,8 @@ export type GeoCoverageQueue = {
   geoTag: GeoTag;
   status: GeoCoverageStatus;
   assignmentTeamName: string | null;
+  assignmentAgentUserId: string | null;
+  assignmentAgentName: string | null;
   autoAssignmentEnabled: boolean;
 };
 
@@ -25,6 +27,8 @@ export function defaultGeoCoverageQueues(): GeoCoverageQueue[] {
     geoTag,
     status: "draft",
     assignmentTeamName: null,
+    assignmentAgentUserId: null,
+    assignmentAgentName: null,
     autoAssignmentEnabled: false,
   }));
 }
@@ -40,6 +44,10 @@ export function geoCoverageStatusLabel(
 export function geoCoverageQueueLabel(
   queue: GeoCoverageQueue,
 ): string {
+  if (queue.assignmentAgentName) {
+    return queue.assignmentAgentName;
+  }
+
   return queue.assignmentTeamName
     ? queue.assignmentTeamName
     : "Unassigned team queue";
