@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { requirePermissionAccess } from "@/lib/auth/access-control";
+import { GEO_TAGS } from "@/lib/geo/geo-tag-contract";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function PilotLaunchPage() {
   }
 
   const supabase = await createClient();
-  const [agentsResult, projectsResult, inventoryResult, leadsResult] =
+  const [agentsResult, projectsResult, inventoryResult, leadsResult, coverageResult] =
     await Promise.all([
       supabase.rpc("list_organization_sales_agents", {
         p_organization_id: organizationId,
@@ -47,6 +48,13 @@ export default async function PilotLaunchPage() {
         .select("id", { count: "exact", head: true })
         .eq("organization_id", organizationId)
         .is("deleted_at", null),
+      supabase
+        .from("geo_coverage_queues")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId)
+        .eq("status", "active")
+        .eq("auto_assignment_enabled", false)
+        .not("assignment_agent_profile_id", "is", null),
     ]);
 
   const activeAgents = Array.isArray(agentsResult.data)
@@ -55,6 +63,9 @@ export default async function PilotLaunchPage() {
   const projectCount = projectsResult.count ?? 0;
   const inventoryCount = inventoryResult.count ?? 0;
   const leadCount = leadsResult.count ?? 0;
+  const configuredCoverageCount = coverageResult.error
+    ? 0
+    : coverageResult.count ?? 0;
 
   const steps: ChecklistStep[] = [
     {
@@ -76,10 +87,10 @@ export default async function PilotLaunchPage() {
     {
       title: "Check follow-up SLA and coverage",
       description:
-        "Review overdue rules and area coverage before real enquiries are handed to the team.",
-      href: "/dashboard/follow-ups/sla",
-      action: "Review SLA",
-      complete: false,
+        "Review overdue rules, map each operating area to a responsible team member, and keep routing manual for the pilot.",
+      href: "/dashboard/follow-ups/team-onboarding",
+      action: "Configure coverage",
+      complete: configuredCoverageCount === GEO_TAGS.length,
     },
     {
       title: "Run a controlled test enquiry",

@@ -114,8 +114,8 @@ const navigationItems: NavigationItem[] = [
   },
   {
     href: "/dashboard/follow-ups/team-onboarding",
-    label: "GEO Team Plan",
-    description: "Example area coverage seats",
+    label: "GEO Team Coverage",
+    description: "Set manual area responsibility",
     permission: "followups.view",
     additionalPermission: "leads.view",
     exact: true,

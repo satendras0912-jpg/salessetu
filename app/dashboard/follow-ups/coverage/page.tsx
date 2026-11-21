@@ -41,7 +41,7 @@ export default async function GeoCoveragePage() {
           View GEO readiness
         </Link>
         <Link href="/dashboard/follow-ups/team-onboarding" className="ml-3 mt-4 inline-flex rounded-xl border border-violet-400/50 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-100 hover:bg-violet-400/20">
-          View example team plan
+          Configure team coverage
         </Link>
         <Link href="/dashboard/follow-ups/routing-simulator" className="ml-3 mt-4 inline-flex rounded-xl border border-amber-400/50 bg-amber-400/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-400/20">
           Run routing simulation
@@ -75,7 +75,9 @@ export default async function GeoCoveragePage() {
             <p className="mt-2 text-sm leading-6 text-slate-400">
               {queue.autoAssignmentEnabled
                 ? "Auto-routing is active for this coverage queue."
-                : "Auto-routing is disabled. Add the responsible team and activate routing only when members are ready."}
+                : queue.assignmentAgentName
+                  ? "Manual coverage is configured. Auto-routing remains disabled."
+                  : "Auto-routing is disabled. Add the responsible team and activate routing only when members are ready."}
             </p>
           </article>
         ))}
@@ -84,9 +86,10 @@ export default async function GeoCoveragePage() {
       <section className="rounded-2xl border border-cyan-500/30 bg-cyan-500/5 p-6">
         <h2 className="text-lg font-semibold text-white">Current operating rule</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-          Until team members are added, every GEO queue stays in draft and routes
-          follow-ups to the unassigned team queue for human review. No scheduler,
-          call, message, or customer outreach is enabled here.
+          Until a responsible team member is configured, every GEO queue stays in
+          draft and routes follow-ups to the unassigned team queue for human
+          review. Configuring coverage alone does not enable routing, a scheduler,
+          calls, messages or customer outreach.
         </p>
         <Link
           href="/dashboard/follow-ups/geo-mapping"
