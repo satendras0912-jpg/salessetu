@@ -84,8 +84,8 @@ cp -R "$GITHUB_WORKSPACE/supabase/migrations/." "$REPLAY_SUPABASE/migrations/"
 # is introduced by the next-day reliability guard. Reorder only its disposable
 # copy between that guard and the owner-permissions migration. Production files
 # and SQL bytes remain unchanged; this is the staging manifest's dependency fix.
-mv "$REPLAY_SUPABASE/migrations/20261102093000_fix_lead_capture_duplicate_protection.sql" \
-  "$REPLAY_SUPABASE/migrations/20261102100050_fix_lead_capture_duplicate_protection.sql"
+mv "$REPLAY_SUPABASE/migrations/20261102093000_lead_capture_duplicate_protection.sql" \
+  "$REPLAY_SUPABASE/migrations/20261102100050_lead_capture_duplicate_protection.sql"
 npx --yes "supabase@$SUPABASE_CLI_VERSION" migration up --workdir "$REPLAY_ROOT"
 
 applied_count="$(psql "$DB_URL" --tuples-only --no-align --command 'select count(*) from supabase_migrations.schema_migrations')"
