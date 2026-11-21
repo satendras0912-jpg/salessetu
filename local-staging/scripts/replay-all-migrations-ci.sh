@@ -88,8 +88,9 @@ mv "$REPLAY_SUPABASE/migrations/20261102093000_lead_capture_duplicate_protection
   "$REPLAY_SUPABASE/migrations/20261102100050_lead_capture_duplicate_protection.sql"
 npx --yes "supabase@$SUPABASE_CLI_VERSION" migration up --workdir "$REPLAY_ROOT"
 
+expected_count="$(find "$REPLAY_SUPABASE/migrations" -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')"
 applied_count="$(psql "$DB_URL" --tuples-only --no-align --command 'select count(*) from supabase_migrations.schema_migrations')"
-test "$applied_count" = "103"
+test "$applied_count" = "$expected_count"
 
 # The replay must retain the repo's intended service-role-only capture RPCs.
 psql "$DB_URL" --set ON_ERROR_STOP=1 --command "
