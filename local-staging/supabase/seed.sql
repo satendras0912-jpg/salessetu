@@ -1,0 +1,1 @@
+-- LOCAL ONLY: no customer PII or real contacts. Synthetic smoke test generates QA IDs on demand.
