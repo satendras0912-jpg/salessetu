@@ -58,20 +58,20 @@ select set_config('request.jwt.claims', '{"role":"authenticated","sub":"2d6c4444
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '2d6c4444-0000-4000-8000-000000000001', true);
 set local role authenticated;
-do $
+do $$
 declare visible integer;
 begin
  select count(*) into visible from public.leads where metadata ->> 'idempotency_key' = 'ci-synthetic-idempotency-test';
  if visible <> 1 then raise exception 'Expected tenant A owner to see synthetic lead, saw %', visible; end if;
-end $;
+end $$;
 select set_config('request.jwt.claims', '{"role":"authenticated","sub":"2d6c4444-0000-4000-8000-000000000002"}', true);
 select set_config('request.jwt.claim.sub', '2d6c4444-0000-4000-8000-000000000002', true);
-do $
+do $$
 declare visible integer;
 begin
  select count(*) into visible from public.leads where metadata ->> 'idempotency_key' = 'ci-synthetic-idempotency-test';
  if visible <> 0 then raise exception 'Tenant B owner saw tenant A synthetic lead'; end if;
  raise notice 'PASS: synthetic owners respect cross-tenant lead visibility';
-end $;
+end $$;
 reset role;
 rollback;
