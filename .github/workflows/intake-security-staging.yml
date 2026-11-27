@@ -1,5 +1,8 @@
 name: Isolated intake security checks
 on:
+  pull_request:
+    branches:
+      - feature/isolated-local-supabase-contract-harness
   push:
     branches:
       - test/intake-security-staging-20261127
