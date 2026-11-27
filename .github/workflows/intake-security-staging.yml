@@ -1,0 +1,30 @@
+name: Isolated intake security checks
+on:
+  push:
+    branches:
+      - test/intake-security-staging-20261127
+permissions:
+  contents: read
+jobs:
+  intake-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Replay disposable schema and check security metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("local-staging/scripts/replay-all-migrations-ci.sh")
+          source = path.read_text()
+          needle = "printf 'PASS: isolated full migration replay"
+          assert source.count(needle) == 1
+          check = 'psql "$DB_URL" --set ON_ERROR_STOP=1 --file "$GITHUB_WORKSPACE/local-staging/scripts/check-intake-security.sql"\n'
+          path.write_text(source.replace(needle, check + needle))
+          PY
+          bash local-staging/scripts/replay-all-migrations-ci.sh
