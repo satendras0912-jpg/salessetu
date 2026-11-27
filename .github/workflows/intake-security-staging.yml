@@ -27,7 +27,7 @@ jobs:
           source = path.read_text()
           needle = "printf 'PASS: isolated full migration replay"
           assert source.count(needle) == 1
-          check = 'psql "$DB_URL" --set ON_ERROR_STOP=1 --file "$GITHUB_WORKSPACE/local-staging/scripts/check-intake-security.sql"\n'
+          check = 'psql "$DB_URL" --set ON_ERROR_STOP=1 --file "$GITHUB_WORKSPACE/local-staging/scripts/apply-intake-hardening-test-only.sql"\npsql "$DB_URL" --set ON_ERROR_STOP=1 --file "$GITHUB_WORKSPACE/local-staging/scripts/check-intake-security.sql"\n'
           path.write_text(source.replace(needle, check + needle))
           PY
           bash local-staging/scripts/replay-all-migrations-ci.sh
