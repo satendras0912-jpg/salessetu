@@ -44,4 +44,34 @@ begin
   if matching_leads <> 1 then raise exception 'Expected one matching synthetic lead; found %', matching_leads; end if;
   raise notice 'PASS: synthetic route, persisted receipt, trigger and idempotency';
 end $$;
+
+-- Test real RLS under two synthetic authenticated owner identities.
+insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data)
+values
+ ('2d6c4444-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'ci-owner-a@example.invalid', '{}'::jsonb, '{}'::jsonb),
+ ('2d6c4444-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'ci-owner-b@example.invalid', '{}'::jsonb, '{}'::jsonb);
+insert into public.organization_members(organization_id, user_id, is_owner)
+values
+ ('1d6c4444-0000-4000-8000-000000000001', '2d6c4444-0000-4000-8000-000000000001', true),
+ ('1d6c4444-0000-4000-8000-000000000002', '2d6c4444-0000-4000-8000-000000000002', true);
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"2d6c4444-0000-4000-8000-000000000001"}', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '2d6c4444-0000-4000-8000-000000000001', true);
+set local role authenticated;
+do $
+declare visible integer;
+begin
+ select count(*) into visible from public.leads where metadata ->> 'idempotency_key' = 'ci-synthetic-idempotency-test';
+ if visible <> 1 then raise exception 'Expected tenant A owner to see synthetic lead, saw %', visible; end if;
+end $;
+select set_config('request.jwt.claims', '{"role":"authenticated","sub":"2d6c4444-0000-4000-8000-000000000002"}', true);
+select set_config('request.jwt.claim.sub', '2d6c4444-0000-4000-8000-000000000002', true);
+do $
+declare visible integer;
+begin
+ select count(*) into visible from public.leads where metadata ->> 'idempotency_key' = 'ci-synthetic-idempotency-test';
+ if visible <> 0 then raise exception 'Tenant B owner saw tenant A synthetic lead'; end if;
+ raise notice 'PASS: synthetic owners respect cross-tenant lead visibility';
+end $;
+reset role;
 rollback;
