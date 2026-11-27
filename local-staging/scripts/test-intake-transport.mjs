@@ -1,9 +1,32 @@
 import assert from 'node:assert/strict';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
+import { TextDecoder } from 'node:util';
+import vm from 'node:vm';
+import ts from 'typescript';
+import { NextRequest, NextResponse } from 'next/server.js';
 
-// This process is a test fixture, not production transport or n8n.
+// Snapshots from Kavyarpit commit 72cc5d4117939e23c8c0377a5ddfe9e21f4c182f.
+// Synthetic CI fixture only. Not n8n or a deployable production integration.
+function load(file, imports = {}) {
+  const exports = {};
+  const code = ts.transpileModule(readFileSync(file, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }, fileName: file,
+  }).outputText;
+  vm.runInNewContext(code, {
+    exports, URL, Headers, process: { env: {} },
+    require(name) { if (!Object.hasOwn(imports, name)) throw new Error('Unexpected import: ' + name); return imports[name]; },
+    fetch() { throw new Error('Network forbidden within loaded website code'); },
+  }, { timeout: 5000 });
+  return exports;
+}
+const base = 'local-staging/fixtures/kavyarpit/';
+const contract = load(base + 'contract.ts');
+const adapter = load(base + 'consultation-adapter.ts', {
+  'server-only': {}, 'node:crypto': { createHmac }, '@/lib/consultation/contract': contract,
+});
 const root = new URL(process.env.API_URL || '');
 assert.equal(root.protocol, 'http:');
 assert.ok(['127.0.0.1', 'localhost'].includes(root.hostname));
@@ -32,12 +55,12 @@ const server = createServer(async (req, res) => {
       res.writeHead(401).end(); return;
     }
     const parsed = JSON.parse(body.toString('utf8'));
-    if (parsed.synthetic !== true || parsed.idempotency_key !== 'ci-only-transport-test') {
+    // Explicitly bind the website route to a separate synthetic tenant in this fixture.
+    if (parsed.route_key !== 'kavyarpit-web' || parsed.full_name !== 'Synthetic CI Test'
+        || parsed.organization_id !== undefined || !/^[a-f0-9]{64}$/.test(parsed.idempotency_key)) {
       res.writeHead(400).end(); return;
     }
-    const payload = { route_key: 'ci-transport-route', full_name: 'Synthetic CI Test',
-      phone: '9999000000', idempotency_key: parsed.idempotency_key,
-      metadata: { synthetic: true } };
+    const payload = { ...parsed, route_key: 'ci-transport-route', metadata: { ...parsed.metadata, synthetic: true } };
     const response = await fetch(new URL('/rest/v1/rpc/ingest_lead_capture_intake', root), {
       method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
       headers: { 'Content-Type': 'application/json', apikey: serviceKey, Authorization: 'Bearer ' + serviceKey },
@@ -51,26 +74,46 @@ const server = createServer(async (req, res) => {
 });
 server.listen(0, '127.0.0.1');
 await once(server, 'listening');
-const port = server.address().port;
-const url = 'http://127.0.0.1:' + port + '/test-intake';
-const body = JSON.stringify({ synthetic: true, idempotency_key: 'ci-only-transport-test' });
-async function send(signature) {
+const url = 'http://127.0.0.1:' + server.address().port + '/test-intake';
+const fake = { name: 'Synthetic CI Test', phone: '9999000000', location: 'Noida',
+  project: 'undecided', budget: 'Help me decide', configuration: '3 BHK',
+  timeline: 'Exploring options', siteVisit: 'Not yet', consent: true, website: '' };
+const id = '8ce32db2-5fb4-4c81-8c4f-705b4e155a2f';
+const dedupeSecret = 'synthetic-dedupe-only-not-a-production-secret';
+const payload = adapter.buildIdempotentConsultationPayload(fake, id, dedupeSecret);
+const body = JSON.stringify(payload);
+const receipts = [];
+async function syntheticSubmit(value) {
+  const outbound = JSON.stringify(adapter.buildIdempotentConsultationPayload(value, id, dedupeSecret));
   const response = await fetch(url, { method: 'POST', redirect: 'error',
-    headers: { 'Content-Type': 'application/json', 'x-test-signature': signature },
-    body, signal: AbortSignal.timeout(10000) });
-  return { status: response.status, body: response.ok ? await response.json() : null };
+    headers: { 'Content-Type': 'application/json', 'x-test-signature': sign(outbound) },
+    body: outbound, signal: AbortSignal.timeout(10000) });
+  const receipt = response.ok ? await response.json() : null;
+  receipts.push(receipt);
+  return { status: adapter.isConfirmedSavedLeadReceipt(response.status, receipt) ? 'accepted' : 'failed' };
+}
+const post = load(base + 'route.ts', {
+  'next/server': { NextResponse }, 'node:util': { TextDecoder },
+  '@/lib/project-discovery': { approvedIds: ['calisto', 'imperia', 'divine', 'atlantis'] },
+  '@/lib/consultation/contract': contract, '@/server/consultation-adapter': { submitConsultation: syntheticSubmit },
+}).POST;
+function request() {
+  return new NextRequest('https://example.test/api/consultation', {
+    method: 'POST', headers: { host: 'example.test', origin: 'https://example.test', 'content-type': 'application/json' },
+    body: JSON.stringify(fake),
+  });
 }
 try {
-  assert.equal((await send('invalid')).status, 401);
-  const first = await send(sign(body));
-  const duplicate = await send(sign(body));
-  assert.equal(first.status, 200);
-  assert.equal(first.body.duplicate, false);
-  assert.equal(duplicate.status, 200);
-  assert.equal(duplicate.body.duplicate, true);
-  assert.equal(first.body.lead_id, duplicate.body.lead_id);
-  assert.equal(first.body.intake_id, duplicate.body.intake_id);
-  console.log('PASS: loopback authenticated fixture, saved receipt and retry deduplication');
+  const bad = await fetch(url, { method: 'POST', body, headers: { 'x-test-signature': 'invalid' }, signal: AbortSignal.timeout(10000) });
+  assert.equal(bad.status, 401);
+  assert.equal((await post(request())).status, 200);
+  assert.equal((await post(request())).status, 200);
+  assert.equal(receipts[0].duplicate, false);
+  assert.equal(receipts[1].duplicate, true);
+  assert.equal(receipts[0].lead_id, receipts[1].lead_id);
+  assert.equal(receipts[0].intake_id, receipts[1].intake_id);
+  assert.equal((await adapter.submitConsultation(fake)).status, 'disabled');
+  console.log('PASS: website route snapshot, signed local transport and real SalesSetu staging schema');
 } finally {
   server.close();
 }
